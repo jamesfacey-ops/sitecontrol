@@ -1,0 +1,154 @@
+{{template "page_open" (dict
+  "Title" (printf "Trips detail — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* trips_detail.html — the reference/audit half of the old /trips (U2).
+
+     These are the same three sections, with the same rows and the same POST
+     targets they have always had — save the cancel form, removed by [[D-78]]
+     (⟦was: "the same cancel form and the same POST target they have always
+     had"⟧): no trip is cancelled. They live on their own page now because
+     none of them is what an operator with a truck at the window needs —
+     they answer "what does the record say?", which is a question somebody
+     asks deliberately, not one they should have to scroll past. */}}
+<h1>Trips detail <small>({{sitelabel .SiteID}})</small></h1>
+<p><small class="note">Reference and audit. The working surface is the
+  <a href="/trips">operator console</a>.</small></p>
+
+<h2>All trips known here</h2>
+{{/* FIX17d (James 2026-10-07): the last seven days by default; a date range
+     (a plain GET form, no script needed); "show all" on request; the same
+     trips as a CSV. The rows below are unchanged. */}}
+<form class="search-form history-filter" method="get" action="/trips/detail" aria-label="Choose which days of trips to list">
+  <fieldset class="search-filters">
+    <legend>Days</legend>
+    <div class="search-grid">
+      <p class="field"><label class="field-label" for="t-from">From (date)</label>
+        <input type="date" id="t-from" name="from" value="{{.Range.From}}" placeholder="2026-10-01"></p>
+      <p class="field"><label class="field-label" for="t-to">To (date)</label>
+        <input type="date" id="t-to" name="to" value="{{.Range.To}}" placeholder="2026-10-06"></p>
+    </div>
+    <small class="note">A trip belongs to the day it left (the departure time that was typed, when one was; otherwise when it was recorded), by this post's clock. Both dates are included.</small>
+  </fieldset>
+  <p class="actions"><button type="submit" class="button-primary">Show</button>
+    {{if or .Range.All .Range.Custom}}<a class="button" href="/trips/detail">Last 7 days</a>{{end}}</p>
+</form>
+{{with .Range.Problems}}
+<div class="notice notice-warn" role="alert"><strong>NOT FILTERED</strong> — fix this and try again; the last 7 days are shown meanwhile:
+  <ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>
+{{end}}
+<p><strong>{{.Range.Line}}</strong></p>
+{{if .Range.Unplaced}}<p class="note">{{.Range.Unplaced}} {{if eq .Range.Unplaced 1}}trip has{{else}}trips have{{end}} no departure time on record here, so {{if eq .Range.Unplaced 1}}it is{{else}}they are{{end}} listed only under Show all.</p>{{end}}
+<p class="actions">
+  {{if .Range.PrevHref}}<a href="{{.Range.PrevHref}}">&larr; {{.Range.PrevLabel}}</a>{{end}}
+  {{if .Range.NextHref}}{{if .Range.PrevHref}} · {{end}}<a href="{{.Range.NextHref}}">{{.Range.NextLabel}} &rarr;</a>{{end}}
+</p>
+<p class="csv-link"><a href="{{.Range.CSVHref}}" data-csv="trips">Download CSV<span class="sr-only"> of the trips listed here</span></a>
+  {{if not .Range.All}}· <a href="{{.Range.CSVAllHref}}" data-csv="trips-all">Download CSV of the whole season</a>{{end}}
+  <small class="note">(times in UTC)</small></p>
+<p class="csv-link"><a href="{{.Range.CSVVisitsHref}}" data-csv="visits">Download CSV of the visits listed below</a>
+  <small class="note">({{.Range.VisitsLine}}, by the day they signed in)</small></p>
+{{if .Range.UnplacedVisits}}<p class="note">{{.Range.UnplacedVisits}} {{if eq .Range.UnplacedVisits 1}}visit has{{else}}visits have{{end}} no sign-in time on record here, so {{if eq .Range.UnplacedVisits 1}}it is{{else}}they are{{end}} listed only under Show all.</p>{{end}}
+{{if not .Range.All}}<p class="note"><a href="/trips/detail?all=1">Show all trips of the season</a> — this is slow
+  and the page is very large (several seconds, about 14 MB at season scale).</p>{{end}}
+{{/* THE DRIVER COLUMN. The driver flag exists so that a report written
+     after an incident can say who was at the wheel — and until this column
+     it was rendered ONLY on in-flight or crashed trips (the inbound board,
+     the alert rows, /gate's incomplete check-ins, the muster's MAY BE
+     INCOMPLETE table). The moment a trip arrived, its driver vanished from
+     every human-readable view and the only recovery was a raw JSON dump
+     with a hand-joined person id. This table is the one that covers open,
+     arrived AND cancelled trips, so it is where the question is asked. */}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="All trips and drivers (scrolls sideways)">
+<table>
+  <tr><th>Trip</th><th>Vehicle</th><th>Driver</th><th>From</th><th>To</th><th>State</th><th><span class="sr-only">Note</span></th></tr>
+  {{range .Trips}}
+  <tr id="trip-{{.TripID}}">{{/* FIX9: the search's truck links land here */}}
+    <td><code>{{.TripID}}</code></td>
+    <td><code>{{.Vehicle}}</code></td>
+    <td>{{.Driver}}</td>
+    <td>{{sitelabel .Origin}}</td>
+    <td>{{.Destination}}</td>
+    <td>{{.State}}{{if .Returned}} — <strong>RETURNED</strong> to {{sitelabel .Origin}} (turned back){{end}}</td>
+    {{/* ⟦D-78, 2026-09-05⟧ THE CANCEL BUTTON IS REMOVED.
+         ⟦was: {{if eq .State "open"}}<form class="inline" method="post" action="/trips/cancel">…<button type="submit">Cancel</button></form>{{end}}⟧
+         [[D-73]]: "no trip will be cancled they will continue on to the next
+         post then leave that post with a second trip". [[D-78]] closed the
+         route. An open trip is corrected by waiting for it to arrive (the
+         trip-amend screen says so); a return journey is a second dispatch
+         from the destination. */}}
+    {{/* L09 T-141: the correction surface was reachable only by typing its
+         URL and feeding it ids from a database dump. Each trip links to it. */}}
+    <td><a href="/trips/amend?trip_id={{.TripID}}">correct this record</a>{{if .ReturnManifest}} · <a href="/trips">return manifest is on the console</a>{{end}}</td>
+  </tr>
+  {{else}}<tr><td colspan="7"><em>No trips.</em></td></tr>{{end}}
+</table>
+</div>
+<small class="note">Trips are not cancelled: a dispatched vehicle continues to the next post,
+and a return journey is a second dispatch from that post. To correct an open trip's vehicle,
+destination or travel allowance, wait until it arrives, then correct the record here or at the
+destination.</small>
+
+{{/* ⟦W9a-1, W9a-2 consumer 11⟧ THE RECORD CHAIN. The table above answers
+     D-5's question — who was driving, who was aboard — from the EFFECTIVE
+     record. This answers the other half [[D-1]] owes: what the record said
+     BEFORE, and which post said it. An amendment is a new event and never
+     an edit precisely so this can be rendered; a surface that showed only
+     the effective value would make the editing fold indistinguishable from
+     a correct build, on the one page an incident report is written from.
+
+     Attribution is STRUCTURAL — the authoring post's site id, resolved to
+     its configured display name and to "this post" when it is this one.
+     The amendment payloads carry no recorded_by by design (D-5), so the
+     post is the whole of what the chain can say about who corrected it. */}}
+<h2>Record chain — what each post asserted</h2>
+{{range .Trips}}
+{{if .Chain}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Record chain for trip {{.TripID}} (scrolls sideways)">
+<table>
+  <caption>trip <code>{{.TripID}}</code></caption>
+  <tr><th>Post</th><th>Assertion</th><th>Fact</th><th>Value</th></tr>
+  {{range .Chain}}{{$e := .}}{{range .Facts}}
+  <tr>
+    <td>{{$e.Post}}</td>
+    <td>{{if $e.Dispatch}}dispatched{{else}}corrected{{end}}</td>
+    <td>{{.Label}}</td>
+    <td>{{assertedprose .Value}}</td>
+  </tr>
+  {{end}}{{end}}
+</table>
+</div>
+{{end}}
+{{else}}<p><em>No trips.</em></p>{{end}}
+<small class="note">Every assertion is kept, including the ones later corrections replaced.
+  Nothing here is deleted and nothing is rewritten in place.</small>
+
+<h2>Recorded as out at uncontrolled destinations</h2>
+{{range .OutAt}}
+{{/* M-09: opens with its kind, not with the pad name. See gate.html's
+     incomplete-check-in notice for the reasoning. */}}
+<div class="notice notice-warn"><strong>AWAY AT A PAD</strong> — {{padname .Pad}}, vehicle <code>{{.Vehicle}}</code>:
+  {{range $i, $p := .Persons}}{{if $i}}, {{end}}{{$p.Name}}{{end}}
+  <small class="note">Recorded out there and not since seen on a site. No gate at the pad and no
+  timer — verify by radio if it matters right now. They check in normally on return, any vehicle.</small>
+</div>
+{{else}}<p><em>Nobody recorded as out at an uncontrolled destination.</em></p>{{end}}
+
+<h2>Visits</h2>{{/* FIX17d: the same days as the trips above (by sign-in); rows unchanged. */}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Visits (scrolls sideways)">
+<table>
+  <tr><th>Person</th><th>Site</th><th>Company (at check-in)</th><th>Trade (at check-in)</th><th>Status</th></tr>
+  {{range .Visits}}
+  <tr {{if not .Open}}class="closed"{{end}}>
+    <td>{{.Person}}</td><td>{{sitelabel .Site}}</td><td>{{.Company}}</td><td>{{.Trade}}</td>
+    <td>{{if .Open}}on site{{else}}checked out{{end}}</td>
+  </tr>
+  {{else}}<tr><td colspan="5"><em>No visits.</em></td></tr>{{end}}
+</table>
+</div>
+<small class="note">Company and trade are shown exactly as recorded at check-in — never
+re-resolved through the current roster, even if it changes later (design §8.8-i).</small>
+
+<nav class="pagenav"><a href="/trips">operator console</a> · <a href="/gate">gate</a> ·
+  <a href="/muster">muster</a> · <a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/status">status page</a></nav>
+{{template "page_close" .}}

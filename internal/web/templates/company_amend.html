@@ -1,0 +1,202 @@
+{{template "page_open" (dict
+  "Title" (printf "Amend company — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* company_amend.html — the officer-facing COMPANY amendment + merge
+     surface (W5d, item 12; gated by D-51, which is this surface's OWN
+     ruling and does not cite D-46). One screen: correct a company name,
+     merge (same_as), un-merge (clear = same_as).
+
+     THE AMENDABLE SET IS {name, same_as} AND NOTHING ELSE. There is no
+     `retired` control here and there never will be: D-41.1 rules company
+     retirement out, so a company is corrected but never removed from the
+     picker.
+
+     THE CONFIRMATION BLOCK IS PER-FACT AND COMPUTED AT RENDER TIME
+     (visible-failure-v1 §5). Four shapes, and the pairing matters:
+       - an assertion that STANDS and displaced nothing stays terse;
+       - an assertion that STANDS and DID displace one carries rendering 2
+         (D-53's FIX arm): the winning officer is told, in words, whose
+         amendment theirs took the place of. Rendering 2 has TWO arms: the
+         cross-post one ends in the radio instruction, the same-post one
+         does NOT — there is no peer to call when the amendment you
+         displaced is your own (see the branch below). ⚠ Keep that sentence in ONE
+         unbroken text run — no <strong>, no punctuation markup between
+         "now stands" and the post name — because the assertion that
+         guards it reads the notice element's text, and a tag inside the
+         phrase inserts a space that breaks it against a CORRECT build;
+       - a superseded assertion says so, naming the post whose assertion
+         stands, and a losing UN-MERGE says the records remain merged;
+       - an outcome that cannot be determined says exactly that, loudly,
+         and never shows the terse success line beside it.
+
+     THE RENDERING-2 WORDING IS DRAWN FROM OUTSIDE THE ADVERSE REGISTER
+     ("superseded" / "not in effect" / "remain merged" / "will not
+     display"). The adverse words belong to the LOSING side; mixing them is
+     how a test that only greps for "superseded" becomes blind to an
+     inverted renderer.
+
+     REFUSALS PRESERVE THE OFFICER'S TYPING as value="…" on the controls
+     (W5-X2). The refusal sentence quoting the value back is NOT the same
+     thing — losing the typing to a validation error makes the officer
+     re-enter everything.
+
+     THERE ARE THREE ERROR NOTICES, NOT TWO, because the edge has three
+     error classes and the officer's next action differs in each: a
+     fact-domain REFUSAL means the amendment asked for is not allowed (fix
+     the amendment); an INPUT-VALIDITY refusal means the record named is not
+     here (fix the id); an INTERNAL fault means this post failed (raise it).
+     ⚠ Do not collapse the first two into the third's banner. An earlier
+     build routed a mistyped company id to the internal arm and told the
+     officer, at HTTP 500, that the post could not complete the amendment
+     and to try again and then radio it through — on a surface whose company
+     id is typed by hand with NO PICKER, where a typo is the likeliest
+     mistake there is, and where retrying is guaranteed to fail identically.
+     Each of the first two carries the DOMAIN'S OWN authored sentence, which
+     is true and operator-legible; the internal one carries none, because a
+     real fault's text is exactly what must not reach the page (W5d-24). All
+     three say nothing was recorded, because in all three nothing was.
+
+     THE STANDING LINE at the bottom is D-28's one static sentence, and its
+     precedence-taker is DERIVED from config (the greater site_id) — never a
+     hardcoded post name. Keep the whole sentence in ONE text run: no
+     periods or extra markup between "Where" and "takes precedence".
+
+     NO <style> BLOCK (the shared partial owns styling), no script. */}}
+<h1>Amend company <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Outcome}}
+  {{if .Outcome.NotThisKind}}
+  {{/* ⟦D22, fix2-fj 2026-10-04⟧ a key naming an event of ANOTHER kind
+       here: nothing to confirm (the T-199 / R-080 arm). Never the
+       green "Recorded" of someone else's record. */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Outcome.Key}}</code>, which is not a company amendment recorded at this post. Opening it recorded nothing. To amend a company, use the form below.</div>
+  {{else if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this amendment</div>
+  {{else}}
+    {{range .Outcome.Rows}}
+      {{if .Effective}}
+        {{if .SupersededPost}}
+          {{/* TWO ARMS, and the split is a TRUTH split, not a style one
+               (W5 post-lock, F-1 of the operator-journey critique).
+               D-53 justifies the radio instruction by the winner being "the
+               only one who can radio about it" — which is true of a PEER
+               post and false of your own: the same-post displacement is
+               overwhelmingly an officer correcting their own typo seconds
+               earlier, and there is nobody to call. Ordering a radio call
+               with no recipient burns radio time at 40 below and trains the
+               officer to ignore the notice on the cross-post firing D-53
+               was actually built for. The displacement is still real and is
+               still confirmed — only the radio clause is dropped.
+               ⚠ The arm is selected by the literal L-1 form
+               `supersededPostName` returns for this post
+               (company_amend.go:155–158). That coupling is GUARDED, not
+               hoped at: TestW5dWinningCompanyAmendmentTellsItsAuthor's
+               same-post arm asserts this notice carries "this post" AND
+               carries no "radio it through", so changing the Go literal
+               fails the test rather than silently restoring the radio
+               order here. Keep each arm in ONE unbroken text run. */}}
+          {{if eq .SupersededPost "this post"}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} amendment now stands: it takes the place of an earlier amendment made at {{.SupersededPost}}.</div>
+          {{else}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} amendment now stands: it takes the place of an earlier amendment made at {{.SupersededPost}}. Whoever made that one is not being told by this screen — radio it through.</div>
+          {{end}}
+        {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Fact}}.</div>
+        {{end}}
+      {{else if .UnMerge}}
+        {{- /* ⟦L-1⟧ THE SAME TRUTH SPLIT AS THE WINNER'S ARM ABOVE, on the
+             LOSING side (W5 post-lock §23). WinnerAtThisPost means the
+             assertion that stands was authored HERE, by a later amendment
+             at this same post; the officer reading this is standing at it
+             and has nobody to radio. ⚠ The two arms differ in the SIGNAL
+             they read, not only in wording: the winner's arm branches on
+             supersededPostName's "this post" literal, this one on a bool
+             from the handler, because peerDisplayName — which fills
+             WinnerPost — answers with this post's OWN configured display
+             name ("Ice Road"), reads as a different post entirely, and is
+             shared with the time-correction surface and D-28's standing
+             line, so it may not be special-cased here.
+             The supersession stays stated and stays adverse; only the
+             radio clause is replaced by what is true — the standing value
+             was authored here and can be amended here.
+             ⚠ The cross-post arm below is UNCHANGED, byte for byte.
+             Keep each arm in ONE unbroken text run. */}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: a later merge made at this post stands. The two records remain merged on every screen. That merge was authored here, at this post — un-merge it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: the merge made at {{.WinnerPost}} stands. The two records remain merged on every screen. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{else}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by a later amendment made at this post. Your value is kept in the record and will not display. The value that stands was authored here, at this post — amend it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by an amendment made at {{.WinnerPost}}. Your value is kept in the record and will not display. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{end}}
+    {{end}}
+  {{end}}
+{{end}}
+
+{{if .Error}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.Error}}. Nothing was recorded; your entry is still on the form below.</div>
+{{end}}
+
+{{if .InputError}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.InputError}}. Nothing was recorded; your entry is still on the form below. Check the company id against the roster — this post is working, and re-sending the same id will be refused again.</div>
+{{end}}
+
+{{if .InternalError}}
+<div class="notice notice-critical"><strong>NOT RECORDED</strong> — this post could not complete the amendment. Nothing was written to the record. The fault has been logged here; try again, and if it repeats, radio it through.</div>
+{{end}}
+
+<section class="card">
+  <form method="post" action="/company/amend">
+    <div class="field">
+      <label class="field-label" for="company-amend-company-id">Company id (the record being amended)</label>
+      <input id="company-amend-company-id" name="company_id" value="{{.CompanyID}}" required>
+    </div>
+    {{range .Fields}}
+    <div class="field">
+      <label class="field-label" for="company-amend-{{.Key}}">{{.Label}}</label>
+      <input id="company-amend-{{.Key}}" name="{{.Key}}" value="{{.Value}}">
+    </div>
+    {{end}}
+    <div class="field">
+      <label class="field-label" for="company-amend-clear">Clear a field (un-sets it; clear <code>same_as</code> to un-merge)</label>
+      <input id="company-amend-clear" name="clear" value="{{.Clear}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Amend this company</button>
+    </div>
+    <p class="note">A field left blank changes nothing. Amendments append to the record; earlier values are kept, never erased. A company is never retired — correct it instead.</p>
+  </form>
+</section>
+
+{{if .SameNames}}
+{{/* ⟦F-SETUP-1, 2026-10-03⟧ SAME NAME, MORE THAN ONE ROW. A company minted
+     at two posts (while partitioned, or by two officers) is two rows with
+     one name: indistinguishable on every picker, two identical headings on
+     the muster. Nothing merges them automatically — they may genuinely be
+     two companies — so this is where the officer sees the ids beside the
+     one fact that tells the rows apart (the post that added each) and is
+     pointed at Same as. Structural hook: id="company-same-names" /
+     data-same-name-company. */}}
+<section class="card" id="company-same-names">
+  <h2 class="section-head">Companies sharing a name — {{len .SameNames}}</h2>
+  <p><small class="note">Two rows with one name print as two identical company headings on the muster and cannot be told apart on a picker. If they are one company, merge them: amend the duplicate's id above with <strong>Same as</strong> set to the id to keep. If they are two companies, correct one name so they differ.</small></p>
+  <ul>
+  {{range .SameNames}}
+    <li><strong>{{.Name}}</strong> —
+      {{range $i, $r := .Rows}}{{if $i}}; {{end}}<code data-same-name-company="{{$r.ID}}">{{$r.ID}}</code> added at {{$r.Post}}, {{$r.Headcount}} on the roster{{if $r.MergedInto}} (already merged into <code>{{$r.MergedInto}}</code>){{end}}{{end}}
+      — same name as each other; if they are one company, use Same as.</li>
+  {{end}}
+  </ul>
+</section>
+{{end}}
+
+{{if .HasPeer}}
+<p class="note">Where this post and {{.StandingOther}} correct the same thing, {{.StandingTaker}}'s correction takes precedence</p>
+{{end}}
+
+{{template "page_close" .}}

@@ -1,0 +1,130 @@
+{{template "page_open" (dict
+  "Title" (printf "Withdraw an arrival's trip reference — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* arrival_unref.html — W9b (item 16): F4 §3.6's un-reference surface.
+     One form field (`arrival_id`), and a confirmation that is a READ of the
+     recomputed state rather than a prediction composed by the POST.
+
+     ⚠ NOTHING ON THIS SCREEN OFFERS A REPLACEMENT TRIP, and that is a
+     design guarantee rather than an omission (I-2; mutant m15). There is no
+     trip picker, no trip field, and no list of open trips — re-binding is a
+     NEW EXPLICIT ACT through the ordinary check-in path. The wire payload
+     carries no trip field at all, so the guarantee is structural, not
+     editorial.
+
+     ⚠ THE THREE RENDERINGS BELOW ARE CHOSEN BY unref.go FROM THE RECOMPUTED
+     ROWS, never re-derived here. A template that re-decided "did it reopen?"
+     would be a second implementation of the fold rule, free to drift from
+     the one the officer's trip is actually in.
+
+     NO <style> block (the shared partial owns styling), no script. */}}
+<h1>Withdraw an arrival's trip reference <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Refusal}}
+  {{if .Refusal.Unknown}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> This post has no record of arrival
+<code>{{.Refusal.ArrivalID}}</code>. Check the id on the review lane of the trips board, or ask the post
+that took the check-in to withdraw it there.</div>
+  {{else if .Refusal.NoReference}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+names no trip and carries no standing resolution, so there is no selection to withdraw. Whatever it is
+matched to was matched by the fold from the vehicle and origin it claimed — nobody chose it, and this
+screen may only undo a choice a person made. Take it to the <strong>review lane</strong> on the trips board.</div>
+  {{else if .Refusal.AlreadyRetracted}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+has had its trip reference withdrawn already. A second withdrawal would be a second row in a replicated,
+append-only record and the two posts would stop agreeing; the trip's present state is on the
+<strong>review lane</strong> of the trips board.</div>
+  {{else if .Refusal.Foreign}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+is <strong>{{if .Refusal.ForeignSite}}{{sitelabel .Refusal.ForeignSite}}'s{{else}}another post's{{end}} record</strong>, not this post's —
+a site modifies only its own site's data{{/* [[D-87]] ⟦was: "… own site's data (D-87)." — FIX5: no decision id on an officer-visible refusal⟧ */}}. Radio {{if .Refusal.ForeignSite}}{{sitelabel .Refusal.ForeignSite}}{{else}}the post that recorded it{{end}}
+and have them withdraw it there; this post keeps a copy of every site's record and may change none of them.</div>
+  {{else}}
+<div class="notice notice-crit"><strong>Nothing was recorded</strong> and the withdrawal could not be
+completed — check the record before acting on this page.</div>
+  {{end}}
+{{end}}
+
+{{if .Confirm}}
+  {{if .Confirm.NotThisKind}}
+<div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Confirm.Key}}</code>, which is not a withdrawn arrival reference recorded at this post. Opening it recorded nothing.</div>
+  {{else if .Confirm.Failed}}
+<div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — this page
+is not vouching for what the record now says. Check the trips board before relying on it.</div>
+  {{else if .Confirm.NoneWithdrawn}}
+{{/* R3-RES-3: a withdrawn "None of these" bound no trip, so there is no
+     trip to report on — and it is this post's own record, so the pending
+     copy would be false. */}}
+<div class="notice notice-ok">Recorded. The withdrawn resolution was <strong>None of these</strong> — it had
+bound no trip, so nothing reopens and no alert changes. {{template "unref_resolution_back" .Confirm}}</div>
+  {{else if .Confirm.Pending}}
+<div class="notice notice-warn">Recorded. The arrival it names <code>{{.Confirm.ArrivalID}}</code> has not
+reached this post yet, so there is nothing to report about its trip. This page will say what happened once
+that record gets here.</div>
+  {{else if .Confirm.StillBound}}
+{{/* [[D-58]]: "binds" is boundTo, and boundTo has two fillers. The binder is
+     NAMED, and an automatic match is declared as automatic — under a
+     correlation the officer has said "this trip did not arrive" and the fold
+     has answered "yes it did" with no human selection, and the copy must not
+     disguise that as another officer's judgement (D-58 cost 3). */}}
+<div class="notice notice-warn">Trip <strong>{{.Confirm.TripID}}</strong> is still <strong>ARRIVED</strong>.
+Arrival <code>{{.Confirm.BinderID}}</code> accounts for it —
+{{if .Confirm.BinderAutomatic}}matched to it <strong>automatically</strong> by the fold, on vehicle
+<code>{{.Confirm.BinderVehicle}}</code> claiming origin <code>{{sitelabel .Confirm.BinderOrigin}}</code>, with
+<strong>no officer selection</strong>{{else if .Confirm.BinderPost}}checked in against it by
+{{.Confirm.BinderPost}}{{else}}checked in against it at another post{{end}}.
+<strong>This withdrawal did not reopen it.</strong>
+If that vehicle is genuinely out, withdraw <code>{{.Confirm.BinderID}}</code> as well — a check-in somebody
+recorded is withdrawn on this screen, and an automatic match is resolved through the <strong>review lane</strong>.
+{{if .Confirm.FromResolution}}{{template "unref_resolution_back" .Confirm}}{{else}}Arrival <code>{{.Confirm.ArrivalID}}</code> is on the review lane; it selects no other trip.{{end}}</div>
+  {{else if .Confirm.Reopened}}
+{{/* R3-L13: the expectation is replicated everywhere, but the outstanding-
+     alerts list names only trips INBOUND to a post — the alert shows at the
+     destination. Say so; "at both posts" was not true of the alert. */}}
+<div class="notice notice-ok">Trip <strong>{{.Confirm.TripID}}</strong> is <strong>OPEN</strong> — its deadline
+expectation is live again{{if .Confirm.AlertLive}}, and its alert is live now on the destination post's board{{end}}.
+{{if .Confirm.AckSuppressed}}It is overdue, but it carries a standing acknowledgment, so its alert stays
+<strong>SUPPRESSED</strong> at both posts until it is un-acknowledged — the un-acknowledge control is on the
+alerts board.{{end}}
+{{if .Confirm.FromResolution}}{{template "unref_resolution_back" .Confirm}}{{else}}Arrival <code>{{.Confirm.ArrivalID}}</code> is on the review lane; it selects no other trip. If the crew was
+really another trip's, record that trip's check-in through the ordinary path.{{end}}</div>
+  {{else}}
+{{/* Neither reopened nor held by a binding: the surviving records put the
+     trip somewhere else — a cancel. Said in the record's own state word.
+     Telling an officer a cancelled trip is OPEN would be exactly the
+     copy-lie this surface exists to prevent. */}}
+<div class="notice notice-warn">Trip <strong>{{.Confirm.TripID}}</strong> now reads
+<strong>{{.Confirm.State}}</strong>. The withdrawal stands; what the surviving records say about the trip is
+that, not a place on the inbound board. {{if .Confirm.FromResolution}}{{template "unref_resolution_back" .Confirm}}{{else}}Arrival <code>{{.Confirm.ArrivalID}}</code> is on the review lane;
+it selects no other trip.{{end}}</div>
+  {{end}}
+{{end}}
+
+{{/* James, 2026-09-30: unref undoes a resolution — the withdrawn selection
+     was a review-lane resolution; say where the arrival now is, read off
+     its recomputed row, never predicted. */}}
+{{define "unref_resolution_back"}}This withdrew a <strong>resolution</strong> made on the review lane.
+Arrival <code>{{.ArrivalID}}</code> {{if eq .ArrivalNow "ambiguous"}}is <strong>back on the review lane</strong>, parked over
+[{{.Candidates}}] — resolve it again from the trips board, correctly this time{{else if eq .ArrivalNow "correlated"}}now
+<strong>matches one open trip by itself</strong> and the fold has bound it{{else}}now reads <strong>{{.ArrivalNow}}</strong>{{end}}.{{end}}
+
+<p>This withdraws <strong>one</strong> arrival's reference to the trip it was recorded against. It selects no
+other trip, and it never touches the visit record — the people are here; what was wrong was the selection.
+If the crew was really another trip's, record that trip's check-in through the ordinary path.</p>
+
+<form method="post" action="/arrivals/unref">
+  <label for="unref-arrival-id">Arrival id</label>
+  <input id="unref-arrival-id" name="arrival_id" type="text" inputmode="text" autocomplete="off" required>
+  <button type="submit" class="button-primary">Withdraw the reference</button>
+</form>
+
+{{/* ⟦fix4 H⟧ ⟦was: "… withdraw its reference (D-87)."⟧ — the decision id
+     is for the code, not the officer (D-87). */}}
+<p><small class="note">Only the post that recorded the arrival may withdraw its reference. That is usually the
+destination, but it is the origin for an arrival recorded there with “Arrived back here”. Any other post is
+refused, so if the mistake is found elsewhere, radio the post that recorded the arrival. An arrival the fold matched by itself cannot be withdrawn here; that one
+goes to the review lane on the trips board. A <strong>resolution</strong> an officer made on the review lane
+is withdrawn here too: the trip it closed reopens and the arrival is parked again.</small></p>
+{{template "page_close" .}}

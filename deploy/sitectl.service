@@ -1,0 +1,104 @@
+# sitectl.service — the systemd unit that runs ONE SiteControl post.
+#
+# Until 2026-10-03 this unit existed only in prose (design/c4-procedure-v1.md
+# §7.7, "captured from the live box, not reconstructed", and the build-c4 /
+# DEMO-PAIR-UPDATE reports); a cold operator following the procedure had
+# nothing to copy (sc-test test-ops FINDING 4, L12 W7 row). This file IS that
+# unit, field for field as read off the live demo containers, with three
+# deliberate departures, each recorded where it sits: Restart=always (was
+# on-failure) and StartLimitIntervalSec=0 (James, 2026-10-03, below), and the
+# four sandboxing lines (FIX2 2026-10-04, see SANDBOXING below). ⟦FIX3
+# 2026-10-04, FINDINGS-R5 F6 / L04-N2: this said "nothing added but the four
+# sandboxing lines", which the Restart and StartLimit changes contradict.⟧
+#
+# Install (as root, on the post):
+#   install -m 0644 sitectl.service /etc/systemd/system/sitectl.service
+#   systemctl daemon-reload && systemctl enable --now sitectl
+# Then: systemctl status sitectl; journalctl -u sitectl -f
+#
+# ⚠ WorkingDirectory is LOAD-BEARING (D-85). db_path in site.toml is RELATIVE
+# ("db_path = \"site-a.db\""), so the SQLite database — and its -wal/-shm
+# siblings — resolve against this directory. Change it and the post starts on
+# a fresh, EMPTY database that looks exactly like data loss and is not; the
+# same rule binds `sitectl -dump` (deploy/demo/dc.ps1, dump-env.sh: always
+# `cd /opt/sitectl` first). Keep binary, config and DB flat in /opt/sitectl.
+#
+# ⚠ One binary, config-only differentiation (design §6): every post runs this
+# identical unit; only /opt/sitectl/site.toml differs between posts.
+#
+# James, 2026-10-03: crash -> auto restart, Restart=always. ⟦was:
+# Restart=on-failure + RestartSec=2, the policy the demo pair has run since
+# C4; CT510 changes only when the fork is merged into the demo.⟧ ANY exit
+# that systemctl did not ask for is restarted after 2 s. What `always` adds
+# over on-failure is a restart after an UNREQUESTED CLEAN exit — a stray
+# SIGTERM/SIGINT (kill <pid>, an OOM-killer's TERM, a console Ctrl-C) ends
+# the process with status 0, which on-failure leaves down (measured, sc-test
+# L12-UNIT). ⟦FIX2 2026-10-04, L12-UNITa: this comment used to give "a config
+# error the binary reports and exits on" as the example. Wrong: every config
+# error exits 1 (log.Fatalf), which on-failure already restarted — measured,
+# 6 restarts in 14 s.⟧ `systemctl stop` is still honoured: a stop requested
+# through systemd is never restarted. The sc-test L12 kill -9 mid-burst runs
+# (Y-29, both rounds) measured 2.2-2.3 s to answering again with no
+# acknowledged write lost.
+# StartLimitIntervalSec=0 goes with it, belt-and-braces: systemd's default
+# start limit is 5 starts in 10 s, which RestartSec=2 does not quite reach
+# (restarts land just over 2 s apart — L12-UNIT measured none hit), but a
+# unit that ever does hit it is left FAILED and never restarted again — the
+# opposite of the ruling. 0 disables the limit, so a post keeps retrying
+# every 2 s for as long as it takes (reports/hardware-n100-deployment.md
+# §4.1 argued the same direction). A permanent config error therefore
+# restarts forever at 2 s with one journal line each: intended.
+#
+# SANDBOXING (FIX2 2026-10-04, sc-test L12-UNITb — the only lines added to
+# the as-captured unit for sandboxing; StartLimitIntervalSec=0 above is the
+# other added line). The post reads its binary and config, writes ONLY
+# its database and the -wal/-shm siblings in /opt/sitectl (and, since FIX16 D,
+# its nightly copies in /opt/sitectl/backups — a backup_mirror_dir outside
+# /opt/sitectl needs its own ReadWritePaths line; deploy/BACKUP-RESTORE.md),
+# and serves HTTP; nothing else on the box is its business:
+#   NoNewPrivileges=yes  — no setuid escalation from the process tree.
+#   ProtectSystem=strict + ReadWritePaths=/opt/sitectl — the whole file
+#                          system is read-only to the post except its own
+#                          directory (the DB lives there, D-85).
+#   PrivateTmp=yes       — a private /tmp and /var/tmp, where SQLite puts
+#                          its temp files.
+# Checked against the documented install (design/c4-procedure-v1.md §7.7):
+# the files stay where they are and nothing in it writes elsewhere; the
+# backup recipe (`pct exec … tar …/tmp`, `sqlite3 … .backup /tmp/…`) runs
+# OUTSIDE the unit, so the unit's private /tmp does not hide its output; and
+# `sitectl -dump` is run by hand, not by this unit.
+# ⚠ UNTESTED INSIDE LXC. Verified only as a transient unit on a VM. In an
+# unprivileged container these settings may FAIL the start with status
+# 226/NAMESPACE (mount namespacing refused). Verify with a transient
+# systemd-run unit in the target container before deploying (merge gate
+# G-FK1); drop them if it fails.
+# NOT done: a dedicated user. The documented install copies the files into
+# /opt/sitectl as root and nothing chowns them, so `User=sitectl` would
+# start a post that cannot open its own database. It needs an install step
+# first (useradd --system sitectl; chown -R sitectl: /opt/sitectl) — for
+# whoever next owns the install procedure (the USB provisioning design),
+# not a silent unit change. Until then the post runs as root, as on the demo.
+
+# Logs go to the journal (no StandardOutput= override): the F14 observability
+# lines — PEER UNREACHABLE / PEER KEY REJECTED / SYNC ERROR / SYNC RECOVERED /
+# REJOIN — are read with `journalctl -u sitectl`.
+
+[Unit]
+Description=SiteControl status service
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sitectl
+ExecStart=/opt/sitectl/sitectl -config /opt/sitectl/site.toml
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/sitectl
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

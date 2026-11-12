@@ -1,0 +1,44 @@
+# site-plan.example.toml - a two-post trial on ONE Windows PC.
+#
+# A plan holds NO secrets. Passwords and peer keys are generated for you:
+#
+#   sitectl.exe admin season -plan site-plan.example.toml -out C:\SiteControl-season
+#
+# That writes one <site_id>\site.toml per post, passwords.txt (one login
+# password per post) and IT-CHECKLIST.txt. The output folder is the only other
+# copy of every key: delete it once the posts are installed.
+#
+# "alpha" is set up to run as the Windows service (absolute db_path under
+# C:\ProgramData\SiteControl, where install-service.ps1 puts its data).
+# "beta" is run by hand in a console window; its database lands in the folder
+# you start it from.
+#
+# For real posts on separate laptops, give each post the address the OTHER
+# posts reach it on (base_url) and listen on that interface (listen_addr),
+# e.g. listen_addr = "0.0.0.0:8081", base_url = "http://<vpn-address>:8081".
+
+sync_interval_seconds = 10
+
+[[post]]
+site_id      = "alpha"
+display_name = "Alpha Gate"
+listen_addr  = "127.0.0.1:8091"
+base_url     = "http://127.0.0.1:8091"
+db_path      = 'C:\ProgramData\SiteControl\alpha.db'
+site_type    = "text_message"   # or "camp" (people live there)
+orientation  = true             # true at a work site that gives orientation; false at a road post
+
+[[post]]
+site_id      = "beta"
+display_name = "Beta Gate"
+listen_addr  = "127.0.0.1:8092"
+base_url     = "http://127.0.0.1:8092"
+site_type    = "text_message"
+orientation  = true
+
+# A road between two gated posts: each can dispatch vehicles to the other,
+# and the run is timed (travel_minutes prefills the overdue deadline).
+[[route]]
+a              = "alpha"
+b              = "beta"
+travel_minutes = 30

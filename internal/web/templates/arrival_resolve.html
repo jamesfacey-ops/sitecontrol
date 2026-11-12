@@ -1,0 +1,82 @@
+{{template "page_open" (dict
+  "Title" (printf "Resolve a parked arrival — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* arrival_resolve.html — James, 2026-09-30: officer resolution of parked
+     arrivals (Option 1). The controls themselves live on the review lane of
+     the trips board (trips.html); this page is the refusal or the
+     POST-RECOMPUTE confirmation, chosen by resolve.go from the recomputed
+     rows and never re-derived here. No <style>, no script. */}}
+<h1>Resolve a parked arrival <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Refusal}}
+  {{if .Refusal.Unknown}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> This post has no record of arrival
+<code>{{.Refusal.ArrivalID}}</code>. Use the buttons on the review lane of the trips board.</div>
+  {{else if .Refusal.NotParked}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+is not parked in the review lane — there is nothing left for a person to pick. Check the trips board; if the
+arrival was recorded against the wrong trip, withdraw that reference instead.</div>
+  {{else if .Refusal.AlreadyResolved}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+has already been resolved. A resolution is a replicated, append-only record and stands as recorded; the
+trip's present state is on the trips board.</div>
+  {{else if .Refusal.NotCandidate}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Trip <code>{{.Refusal.TripID}}</code> is not
+one of the trips the record parked arrival <code>{{.Refusal.ArrivalID}}</code> against. Choose from the
+candidates on the review lane, or “None of these”.</div>
+  {{else if .Refusal.AlreadyBound}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Trip <code>{{.Refusal.TripID}}</code> has
+since been closed by arrival <code>{{.Refusal.BoundTo}}</code>, so it cannot be chosen for arrival
+<code>{{.Refusal.ArrivalID}}</code>. If the crew was really that trip's, the trip is already accounted for;
+choose another candidate or “None of these”.</div>
+  {{else if .Refusal.NoChoice}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> No choice was made — press exactly one
+button on the review lane: a trip, or “None of these”.</div>
+  {{else if .Refusal.Foreign}}
+<div class="notice notice-crit"><strong>Nothing was recorded.</strong> Arrival <code>{{.Refusal.ArrivalID}}</code>
+is <strong>{{if .Refusal.ForeignSite}}{{sitelabel .Refusal.ForeignSite}}'s{{else}}another post's{{end}} record</strong>, not this post's —
+a site modifies only its own site's data{{/* [[D-87]] ⟦was: "… own site's data (D-87)." — FIX5: no decision id on an officer-visible refusal⟧ */}}. Radio {{if .Refusal.ForeignSite}}{{sitelabel .Refusal.ForeignSite}}{{else}}the post that recorded it{{end}}
+and have them resolve it there.</div>
+  {{else}}
+<div class="notice notice-crit"><strong>Nothing was recorded</strong> and the resolution could not be
+completed — check the record before acting on this page.</div>
+  {{end}}
+{{end}}
+
+{{if .Confirm}}
+  {{if .Confirm.NotThisKind}}
+<div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Confirm.Key}}</code>, which is not an arrival resolution recorded at this post. Opening it recorded nothing.</div>
+  {{else if .Confirm.Failed}}
+<div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — this page
+is not vouching for what the record now says. Check the trips board before relying on it.</div>
+  {{else if .Confirm.Pending}}
+<div class="notice notice-warn">Recorded. The record it names has not fully reached this post yet, so there is
+nothing to report about the trip. The trips board will show what happened once it gets here.</div>
+  {{else if .Confirm.Dismissed}}
+<div class="notice notice-ok">Recorded. Arrival <code>{{.Confirm.ArrivalID}}</code> is now a
+<strong>plain visit</strong> — none of the candidate trips. The people are on site as before; every candidate
+trip stays as it was, still watched where it is open.</div>
+  {{else if .Confirm.Bound}}
+<div class="notice notice-ok">Recorded. Trip <strong>{{.Confirm.TripID}}</strong> is
+<strong>{{.Confirm.State}}</strong> — closed at every post by your selection; its expectation and any alert are
+cleared. Arrival <code>{{.Confirm.ArrivalID}}</code> has left the review lane.</div>
+  {{else if .Confirm.HeldByOther}}
+<div class="notice notice-warn">Recorded. Trip <strong>{{.Confirm.TripID}}</strong> is
+<strong>{{.Confirm.State}}</strong>, but arrival <code>{{.Confirm.BoundTo}}</code> accounts for it — a check-in
+recorded against it reached this post first. Your selection stands on the record and did not change the
+trip. Arrival <code>{{.Confirm.ArrivalID}}</code> has left the review lane.</div>
+  {{else if .Confirm.StillParked}}
+<div class="notice notice-warn">Recorded, but arrival <code>{{.Confirm.ArrivalID}}</code> still reads
+<strong>ambiguous</strong> here. Check the trips board; if it stays parked, report it.</div>
+  {{else}}
+<div class="notice notice-warn">Recorded. Trip <strong>{{.Confirm.TripID}}</strong> now reads
+<strong>{{.Confirm.State}}</strong>; the selection stands. Arrival <code>{{.Confirm.ArrivalID}}</code> has left
+the review lane.</div>
+  {{end}}
+{{end}}
+
+<p>A resolution says which trip a parked arrival belonged to, or that it belonged to none of them. It never
+touches the visit record — the people are here; what was undecided was the trip. The controls are on the
+<a href="/trips">review lane of the trips board</a>, at the post that recorded the arrival.</p>
+{{template "page_close" .}}

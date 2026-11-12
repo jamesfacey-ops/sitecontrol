@@ -1,0 +1,125 @@
+{{template "page_open" (dict
+  "Title" (printf "%s detail — Dispatch analytics" (sitelabel .Site.SiteID))
+  "Main" "an-page"
+  "Refresh" .Refresh
+  "Data" .)}}
+{{/* analytics_site.html — GET /analytics/site/{site} (analytics_site.go).
+     James, 2026-10-03: the site name on /analytics links here — "detailed
+     information on a read-only basis but have it live". READ-ONLY: no
+     <form>, no <button>, no Banner (its ack forms) — this page records
+     nothing. LIVE: page_open's meta refresh (60 s, James 2026-10-03), so it
+     updates with scripting off; "Pause live updates" (?live=0) renders it
+     without one. The STALE warning is the same verdict /analytics gives the card. */}}
+<h1><span class="an-crumb"><a href="/analytics{{if .Paused}}?live=0{{end}}">Dispatch analytics</a> /</span>
+  {{sitelabel .Site.SiteID}}{{with .Name}} <span class="an-site-name">{{.}}</span>{{end}}
+  <small class="note">read-only · as at <span data-an-rendered>{{.RenderedAt}}</span></small></h1>
+{{template "an_live" .}}
+
+{{if .NotFound}}
+<div class="notice notice-warn"><strong>NO SUCH SITE</strong> — this post holds no records for
+<code>{{sitelabel .Site.SiteID}}</code> and does not sync with it. <a href="/analytics{{if .Paused}}?live=0{{end}}">Back to every site</a>.</div>
+{{else if .Err}}
+<div class="notice notice-critical"><strong>DETAIL UNAVAILABLE</strong> — {{.Err}}. Nothing on this page is a
+complete record; do not rely on it.</div>
+{{else}}
+
+{{if .Site.Stale}}
+<div class="notice notice-warn" data-an-stale><strong>STALE — LAST KNOWN — verify by radio.</strong> {{.Site.Freshness}}.
+This post cannot vouch that its copy of {{sitelabel .Site.SiteID}}'s records is current: everything below is what it last
+received, and may be missing everything that site recorded since.</div>
+{{end}}
+
+<section class="an-detail{{if .Site.Stale}} an-stale-page{{end}}">
+<p class="an-fresh">{{if .Site.Stale}}<span class="an-flag">STALE — LAST KNOWN</span>{{else}}<span class="an-flag an-flag-ok">CURRENT</span>{{end}}
+  {{.Site.Freshness}}{{if .Site.LastEvent}} · latest event from this site: {{.Site.LastEvent}}{{end}}</p>
+
+<section class="an-grid an-overview" aria-label="headcounts">
+  <div class="an-tile{{if .Site.Stale}} an-tile-warn{{end}}"><div class="an-num" data-an-count="on-site">{{.Board.Total}}</div><div class="an-label">on site</div></div>
+  <div class="an-tile"><div class="an-num" data-an-count="outbound">{{.OutboundCount}}</div><div class="an-label">on the road from here</div><div class="an-sub">{{len .Outbound}} run(s)</div></div>
+  <div class="an-tile"><div class="an-num" data-an-count="inbound">{{.InboundCount}}</div><div class="an-label">on the road to here</div><div class="an-sub">{{len .Inbound}} run(s)</div></div>
+  <div class="an-tile"><div class="an-num" data-an-count="away">{{.AwayCount}}</div><div class="an-label">out at a pad</div><div class="an-sub">uncontrolled, no timer</div></div>
+  {{/* D4 (James, 2026-10-04): crews this site sent out working on the
+       road — the site's own muster section, counted apart from travel. */}}
+  <div class="an-tile"><div class="an-num" data-an-count="road-work">{{.RoadWorkCount}}</div><div class="an-label">working on the road</div><div class="an-sub">{{len .RoadWork}} run(s) from here</div></div>
+</section>
+
+<div class="an-cols">
+<section class="an-col" data-an-section="on-site">
+  <h2>On site <span class="count">({{.Board.Total}})</span></h2>
+  {{/* James, 2026-10-03: the muster's per-name markers, same words, same
+       hooks (data-restored-visit, data-also-on-site-at), same counts. */}}
+  {{if .RestoredCount}}
+  <p class="restored-note" data-restored-count="{{.RestoredCount}}"><span class="restored-tag">RESTORED</span>
+    <strong>{{.RestoredCount}} of the names below carry this tag:</strong> not signed in at this gate by this post — recovered
+    from the other post’s copy of this site’s records after a rebuild. Counted because that is what the record says.</p>
+  {{end}}
+  {{if .ElsewhereCount}}
+  <p class="elsewhere-note" data-elsewhere-count="{{.ElsewhereCount}}"><span class="elsewhere-tag">ALSO ON SITE AT …</span>
+    <strong>{{.ElsewhereCount}} of the names below carry this tag:</strong> the record also holds them on site at another post,
+    with no departure recorded at either. Both records stay counted; this page does not decide which is current.</p>
+  {{end}}
+  {{range .Board.Companies}}
+  <h3>{{.CompanyName}}</h3>
+    {{range .Trades}}
+    <p class="an-trade">{{.TradeName}} <span class="count">({{len .Members}})</span></p>
+    <ul class="names">{{range .Members}}<li>{{.PersonName}}{{if index $.RestoredVisits .VisitID}} <span class="restored-tag" data-restored-visit="{{.VisitID}}">RESTORED</span>{{end}}{{template "elsewhere_tags" (index $.Elsewhere .VisitID)}}</li>{{end}}</ul>
+    {{end}}
+  {{end}}
+  {{if .Board.Summary}}
+  <h3>Smaller crews <span class="count">({{len .Board.Summary}})</span></h3>
+  <ul class="names">{{range .Board.Summary}}<li>{{.PersonName}}{{if index $.RestoredVisits .VisitID}} <span class="restored-tag" data-restored-visit="{{.VisitID}}">RESTORED</span>{{end}}{{template "elsewhere_tags" (index $.Elsewhere .VisitID)}} <span class="an-sub">{{.CompanyName}} · {{.TradeName}}</span></li>{{end}}</ul>
+  {{end}}
+  {{if and (not .Board.Companies) (not .Board.Summary)}}<p class="note">Nobody is recorded on site here.</p>{{end}}
+</section>
+
+<section class="an-col" data-an-section="runs">
+  <h2>On the road to here <span class="count">({{.InboundCount}})</span></h2>
+  {{with .DeadlineNote}}<p class="note">{{.}}</p>{{end}}
+  <div data-an-runs="inbound">{{range .Inbound}}{{template "an_run" .}}{{else}}<p class="note">No open run is bound for this site.</p>{{end}}</div>
+
+  <h2>On the road from here <span class="count">({{.OutboundCount}})</span></h2>
+  <div data-an-runs="outbound">{{range .Outbound}}{{template "an_run" .}}{{else}}<p class="note">Nobody this site dispatched is still on the road.</p>{{end}}</div>
+
+  <h2>Out at a pad <span class="count">({{.AwayCount}})</span></h2>
+  <div data-an-runs="away">{{range .Away}}
+  <article class="an-run an-run-none">
+    <p class="an-run-head"><code>{{.Vehicle}}</code> → {{.Pad}} <span class="an-sub">uncontrolled — no timer</span></p>
+    <ul class="names">{{range .Persons}}<li>{{.Name}}</li>{{end}}</ul>
+  </article>
+  {{else}}<p class="note">Nobody from this site is recorded out at an uncontrolled destination.</p>{{end}}</div>
+
+  <h2>Working on the road from here <span class="count">({{.RoadWorkCount}})</span></h2>
+  <div data-an-runs="road-work">{{range .RoadWork}}{{template "an_run" .}}{{else}}<p class="note">Nobody this site sent out is still working on the road.</p>{{end}}</div>
+</section>
+</div>
+</section>
+<p class="note">A run bound for or sent out from <strong>{{sitelabel .SiteID}}</strong> (this post) carries this post's own
+deadline verdict — each end of a run counts on its own clock from the instant it recorded. Any other run shows only
+its allowance against the time the dispatch was <em>recorded</em>, <em>by the origin post's clock</em> — the same instant both ends count from, even when the dispatch was entered with an earlier time: "past allowance" there means verify by
+radio — only the two posts on a run can call it overdue.</p>
+{{end}}
+
+{{/* FIX7: analytics links only. ⟦was: also "muster (this post)" and "status page"⟧ */}}
+<nav class="pagenav"><a href="/analytics{{if .Paused}}?live=0{{end}}">all sites</a> · <a href="/analytics/reports">reports</a> · <a href="/search">search records</a> · <a href="/history/overdue">overdue history</a> · <a href="/history/signouts">missed sign-outs</a> · <a href="/history/signal">lost-signal history</a></nav>
+{{template "page_close" .}}
+
+{{define "an_run"}}
+<article class="an-run an-run-{{.Urgency}}" data-an-trip="{{.TripID}}">
+  <p class="an-run-head"><code>{{.Vehicle}}</code> {{.Other}}
+    <span class="an-urgency">{{.UrgencyLabel}}</span></p>
+  <p class="an-sub">{{.Detail}}</p>
+  <p class="an-sub">Driver {{.Driver}} · {{.Count}} aboard{{with .Allowance}} · {{if $.RoadWork}}working limit{{else}}allowance{{end}} {{.}}{{end}}{{with .Dispatched}} · dispatched {{.}}{{end}}</p>
+  {{if .Late}}
+  {{/* FIX16 (James, 2026-10-06): the response essentials on a late run —
+       only what the lines above do not already say. Read-only: no ack, no
+       link into the console; the phone is plain text. */}}
+  <dl class="an-essentials" data-an-essentials>
+    <div><dt>Route</dt><dd>{{.Route}}</dd></div>
+    <div><dt>Deadline</dt><dd>{{if .Deadline}}{{.Deadline}}{{else}}not known here — verify by radio{{end}}</dd></div>
+  </dl>
+  <ul class="names an-contacts">{{range .Contacts}}<li>{{.Name}} <span class="an-contact">{{if .Company}}{{.Company}}{{else}}no company recorded{{end}} · {{if .Phone}}<span class="an-phone">{{.Phone}}</span>{{else}}no phone on file{{end}}</span></li>{{end}}</ul>
+  {{else}}
+  <ul class="names">{{range .Persons}}<li>{{.Name}}</li>{{end}}</ul>
+  {{end}}
+</article>
+{{end}}

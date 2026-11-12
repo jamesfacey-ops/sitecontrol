@@ -1,0 +1,13 @@
+# Normalise line endings. Added 2026-08-19 after internal/web/web_test.go was committed with
+# CRLF terminators (a PowerShell write on Windows), which made `gofmt -l` flag it permanently
+# and produced a WHOLE-FILE diff on every touch — churn that gets misattributed to whichever
+# agent edited the file next. Without this, the repo's formatting signal is unreliable.
+* text=auto eol=lf
+*.go   text eol=lf
+*.toml text eol=lf
+*.md   text eol=lf
+*.html text eol=lf
+*.ps1  text eol=crlf
+*.pdf  binary
+*.docx binary
+*.png  binary

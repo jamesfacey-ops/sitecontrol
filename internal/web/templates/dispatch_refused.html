@@ -1,0 +1,13 @@
+{{template "page_open" (dict
+  "Title" (printf "Not recorded — %s — Dispatch analytics" .Cfg.DisplayName)
+  "Main" "narrow"
+  "Data" .)}}
+{{/* dispatch_refused.html — the answer to a write attempted on the
+     read-only dispatch host (dispatch_surface.go, FIX7 James 2026-10-05).
+     Nothing was recorded: the request never reached a handler. No Banner,
+     no form, and the only link is back to the analytics pages. */}}
+<h1>Dispatch analytics</h1>
+<div class="notice notice-critical refusal-notice" role="alert"><strong>NOT RECORDED.</strong> — Dispatch analytics is
+read-only. Alerts are acknowledged at the gate posts, not from here.</div>
+<p>Go back to <a href="/analytics">Dispatch analytics</a>.</p>
+{{template "page_close" .}}

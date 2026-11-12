@@ -1,0 +1,161 @@
+{{template "page_open" (dict
+  "Title" (printf "%s — Dispatch analytics" .Cfg.DisplayName)
+  "Main" "an-page"
+  "Refresh" .Refresh
+  "Data" .)}}
+{{/* analytics.html — GET /analytics (analytics.go). Every site's card carries
+     its OWN freshness line, and a STALE site is demoted and left out of the
+     overview total (design/analytics-v1.md §8.4): the page never shows a
+     stalled peer's figure as current. Cards are a wrapping grid, one column
+     on a phone; the overview numerals are large enough for a projector.
+     James, 2026-10-03: the page fills the screen at every size (Main
+     "an-page", _styles.html "FILL THE SCREEN") and each site's name links
+     to its read-only live detail, /analytics/site/{id} (analytics_site.go). */}}
+{{/* James, 2026-10-03: a WALL SCREEN — page_open's meta refresh every
+     .Refresh (60) seconds, with scripting off; the page has no form at all
+     (FIX7: the alert strip renders read-only here, AlertsReadOnly), so a
+     refresh between loads loses nothing typed. "Pause live updates" is a plain link
+     (?live=0): the paused page has no meta refresh and offers Resume.
+     The pause rides the links to and from the site pages. */}}
+<h1>Dispatch analytics <small class="note">as at <span data-an-rendered>{{.RenderedAt}}</span> · today = {{.Day}}</small></h1>
+{{template "an_live" .}}
+
+{{with .Err}}
+<div class="notice notice-critical"><strong>FIGURES UNAVAILABLE</strong> — {{.}}. Nothing on this page is a
+complete record; do not rely on it.</div>
+{{else}}
+
+{{if .StaleSites}}
+<div class="notice notice-warn"><strong>STALE DATA — {{.StaleSitesText}}</strong>. This post cannot vouch that its
+copy of {{if eq (len .StaleSites) 1}}that site's{{else}}those sites'{{end}} records is current. Their figures are
+shown as LAST KNOWN below and are <strong>not counted</strong> in the overview's persons on site.
+{{if .ExcludedOnSite}}<strong>{{.ExcludedOnSite}}</strong> person(s) are recorded on site only at
+{{if eq (len .StaleSites) 1}}that site{{else}}those sites{{end}} and are NOT in the total — verify by radio.{{end}}</div>
+{{end}}
+
+<h2>Overview — all sites</h2>
+<section class="an-grid an-overview">
+  <div class="an-tile{{if .StaleSites}} an-tile-warn{{end}}">
+    <div class="an-num">{{.TotalOnSite}}</div>
+    <div class="an-label">persons on site now</div>
+    <div class="an-sub">distinct persons at current sites{{if .StaleSites}}; stale sites excluded{{end}}{{if .RestoredOwn}}. <span class="restored-tag" data-an-restored-own="{{.RestoredOwn}}">{{.RestoredOwn}} RESTORED</span> at this post — recovered from the other post’s copy after a rebuild, not signed in here by this post{{end}}</div>
+  </div>
+  <div class="an-tile">
+    <div class="an-num">{{.TripsDispatchedToday}} <small>/ {{.TripsDispatched}}</small></div>
+    <div class="an-label">trips dispatched</div>
+    <div class="an-sub">today / season</div>
+  </div>
+  <div class="an-tile">
+    <div class="an-num">{{.TripsArrivedToday}} <small>/ {{.TripsArrived}}</small></div>
+    <div class="an-label">trips arrived</div>
+    {{/* James, 2026-10-04 (R8, FINDINGS-R4 D7): a truck that turned back
+         never reached its destination — not counted as arrived, shown apart. */}}
+    <div class="an-sub">today / season. <span data-an-turned-back="{{.TripsTurnedBack}}">{{.TripsTurnedBackToday}} / {{.TripsTurnedBack}} turned back</span> — back at their origin, not counted as arrived</div>
+  </div>
+  <div class="an-tile">
+    <div class="an-num">{{.TripsInTransit}}</div>
+    <div class="an-label">in transit now</div>
+    <div class="an-sub">open trips to a controlled site</div>
+  </div>
+  {{/* James, 2026-10-03: WORKING ON THE ROAD — equipment out on the road
+       itself, counted apart from travel (a grader blading the road is not a
+       trip to a destination). The overdue count is this post's OWN runs past
+       their configured limit, by the scan's verdict. */}}
+  <div class="an-tile{{if .RoadWorkOverdue}} an-tile-crit{{end}}" data-analytics-tile="road-work">
+    <div class="an-num">{{.RoadWorkOut}} <small>/ {{.RoadWorkDispatchedToday}} / {{.RoadWorkDispatched}}</small></div>
+    <div class="an-label">{{.RoadWorkLabel}}</div>
+    <div class="an-sub">out now / sent out today / season{{if .OverdueKnown}}{{if .RoadWorkOverdue}}. <strong>{{.RoadWorkOverdue}} past the working limit</strong> (this post's own runs){{end}}{{end}}</div>
+  </div>
+  <div class="an-tile{{if or .OverdueLive .OverdueUnresolved}} an-tile-crit{{end}}">
+    {{if .OverdueKnown}}
+    <div class="an-num">{{.OverdueLive}}</div>
+    <div class="an-label">overdue now</div>
+    {{/* NEW-a (James, 2026-10-03): the count is every run THIS post is
+         party to — bound for it or sent out from it — and says which. */}}
+    {{/* D12-related (James, 2026-10-04): equipment past its working limit
+         is overdue too — counted here AND split out as its own third part
+         (data-analytics-overdue-road-work), so the parts still sum. */}}
+    <div class="an-sub" data-analytics-overdue-split="{{.OverdueInbound}}/{{.OverdueOutbound}}" data-analytics-overdue-road-work="{{.RoadWorkOverdue}}">{{if .OverdueUnresolved}}<strong>+ {{.OverdueUnresolved}} to verify by radio</strong> ({{with .OverduePastRadio}}{{.}} past deadline, this post cannot say by how much{{if $.OverdueUncounted}}; {{end}}{{end}}{{with .OverdueUncounted}}{{.}} this post cannot count — no receipt timing or a changed clock, not known to be late{{end}}). {{end}}Runs inbound to or outbound from THIS post ({{sitelabel .SiteID}}){{if .Cfg.RoadWorkEnabled}}, and its own equipment working on the road{{end}}{{if or .OverdueLive .OverdueUnresolved}}: <strong>{{.OverdueInbound}} inbound, {{.OverdueOutbound}} outbound{{if .RoadWorkOverdue}}, {{.RoadWorkOverdue}} past the working limit{{end}}</strong>{{end}}; each post judges the runs it is party to, on its own clock.{{template "an_dispatch_other" .}}</div>
+    {{else}}
+    <div class="an-num">?</div>
+    <div class="an-label">overdue now</div>
+    <div class="an-sub">deadline scan unavailable at this post — cannot tell{{template "an_dispatch_other" .}}</div>
+    {{end}}
+  </div>
+  {{/* FIX15 (James, 2026-10-06): SIGNAL — each configured peer as OK,
+       LOST (no completed sync past the STALE ceiling: the top bar's LOST
+       SIGNAL line, same judgement) or CHECK (in contact but not current —
+       a key fault, a stalled log; its own words are on the sync status),
+       with when it was last heard. State in a word, never hue alone. */}}
+  {{if not .Sync.Available}}
+  <div class="an-tile an-tile-warn" data-analytics-tile="signal">
+    <div class="an-num">?</div>
+    <div class="an-label">Signal</div>
+    <div class="an-sub">no sync status at this post — cannot tell which sites it is in contact with</div>
+  </div>
+  {{else if .Signal}}
+  <div class="an-tile{{if .SignalLost}} an-tile-crit{{end}}" data-analytics-tile="signal" data-analytics-signal-lost="{{.SignalLost}}" title="{{.SignalRule}}">
+    <div class="an-num">{{.SignalOK}} <small>/ {{len .Signal}}</small></div>
+    <div class="an-label">Signal</div>
+    <ul class="an-signal">
+    {{- range .Signal}}
+      <li data-signal-site="{{.SiteID}}" data-signal="{{if .Lost}}lost{{else if .OK}}ok{{else}}check{{end}}"><strong class="an-signal-state">{{if .Lost}}LOST{{else if .OK}}OK{{else}}CHECK{{end}}</strong> {{.Name}} — {{.Heard}}{{with .Fault}} ({{.}}){{end}}</li>
+    {{- end}}
+    </ul>
+    <div class="an-sub">sites in contact with this post{{with .SignalRuleShort}}. {{.}}{{end}}</div>
+  </div>
+  {{end}}
+</section>
+<p class="note">Figures are as recorded in this post's copy of the log. "Today" is the local day on this post's clock;
+{{if .TimesUnresolved}}<strong>{{.TimesUnresolved}} event time(s) could not be resolved and are left out of every "today" figure.</strong>{{else}}every event time resolved.{{end}}
+Overdue is a live state, so it has no season figure.</p>
+
+<h2>By site</h2>
+<section class="an-grid an-sites">
+{{range .Sites}}
+  <article class="card an-site{{if .Stale}} an-stale{{end}}">
+    <h3><a class="an-site-link" href="/analytics/site/{{.SiteID}}{{if $.Paused}}?live=0{{end}}">{{sitelabel .SiteID}}</a>{{if .Own}} <small class="note">(this post)</small>{{end}}
+      {{if .Stale}}<span class="an-flag">STALE — LAST KNOWN</span>{{else}}<span class="an-flag an-flag-ok">CURRENT</span>{{end}}</h3>
+    <p class="an-fresh">{{.Freshness}}{{if .LastEvent}}<br>Latest event from this site: {{.LastEvent}}. {{.Events}} event(s) held.{{end}}</p>
+    <dl class="an-figs">
+      {{/* James, 2026-10-03: RESTORED markers like the muster (R-23) — on
+           THIS post's own card only; the classification is scoped to our
+           own tag (analytics.go). */}}
+      <dt>Persons on site now</dt><dd class="an-big">{{.OnSiteNow}}{{if .Restored}} <span class="restored-tag" data-an-restored="{{.Restored}}">{{.Restored}} RESTORED</span>{{end}}</dd>
+      <dt>Visits today / season</dt><dd>{{.VisitsToday}} / {{.VisitsSeason}}</dd>
+      <dt>Avg time on site, today</dt><dd>{{.AvgToday}}</dd>
+      <dt>Avg time on site, season</dt><dd>{{.AvgSeason}}</dd>
+      <dt>Travel out, today / season</dt><dd>{{.TravelOutToday}} / {{.TravelOutSeason}}</dd>
+      <dt>Travel in, today / season</dt><dd>{{.TravelInToday}} / {{.TravelInSeason}}</dd>
+      <dt>Working on the road, today / season</dt><dd data-analytics-road-work>{{.RoadWorkOutToday}} / {{.RoadWorkOutSeason}}</dd>
+    </dl>
+    {{if .Stale}}<p class="an-fresh"><strong>These figures are what this post last received. They may be missing everything that site recorded since.</strong></p>{{end}}
+  </article>
+{{else}}
+  <p class="notice notice-warn"><strong>NO RECORDS</strong> — this post holds no events at all, so there is nothing to total.</p>
+{{end}}
+</section>
+{{/* James, 2026-10-04 (R5, FINDINGS-R4 D14): the gate's "Remove — no departure" stays in the average (at NPF, NDB
+     and STP it is the only exit) and the footnote says so. */}}
+<p class="note">Avg time on site counts only visits closed by a recorded departure (a sign-out or a dispatch)
+and includes visits closed by the gate's “Remove — no departure”; a visit
+closed by the person's own return has no honest duration and is left out (see <code>sitectl -report visits</code>).
+Travel out is a trip dispatched to a destination; travel in is an arrival recorded at the site other than the arrival
+half of a gate check-in.{{if .RestoredOwn}} <strong>RESTORED</strong> marks this post’s own open visits that this post never
+observed: recovered from the other post’s copy of its records after a rebuild (the same marking as the muster and the
+gate roster) — counted, because the record says they are here; confirm each by sight.{{end}}</p>
+{{end}}
+
+{{/* FIX7 (James, 2026-10-05): Dispatch reads only — no links into the
+     operator console from here. ⟦was: a nav to the gate, the operator
+     console, the muster and the status page⟧ FIX9: the records search is
+     a read, allowed on the dispatch host (dispatch_surface.go). */}}
+<nav class="pagenav"><a href="/analytics/reports">reports</a> · <a href="/search">search records</a> · <a href="/reports/visits">visits report</a> · <a href="/reports/signout-failures">sign-out failures report</a> · <a href="/history/overdue">overdue history</a> · <a href="/history/signouts">missed sign-outs</a> · <a href="/history/signal">lost-signal history</a></nav>
+{{template "page_close" .}}
+
+{{/* FIX14 (dispatch host only, dispatch_allsites.go): how many of the
+     overdue-now figures are runs the serving post is not on, and the runs an
+     end acknowledged as OVERDUE. */}}
+{{define "an_dispatch_other"}}{{if .DispatchView}}
+    <span data-analytics-overdue-other="{{.OverdueOther}}">{{with .DispatchPastErr}}<strong>Other posts' runs could not be read ({{.}}) — verify by radio.</strong>{{else}}{{if .OverdueOther}}<strong>Plus {{.OverdueOther}} on other posts' runs</strong>, judged by the origin post's recorded dispatch time{{else}}Other posts' runs are judged by the origin post's recorded dispatch time; none is overdue{{end}}.{{end}}{{with .DispatchPast.AckedOverdue}}
+    <strong>{{len .}} more acknowledged as OVERDUE</strong> at a post on the run:{{range $i, $r := .}}{{if $i}};{{end}} <code>{{$r.Vehicle}}</code> ({{range $j, $b := $r.By}}{{if $j}}, {{end}}{{sitelabel $b}}{{end}}){{end}}.{{end}}</span>{{end}}{{end}}

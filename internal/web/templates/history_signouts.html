@@ -1,0 +1,75 @@
+{{template "page_open" (dict
+  "Title" (printf "Missed sign-outs — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* history_signouts.html — GET /history/signouts (history.go). The
+     verdicts are `sitectl -report signout-failures`'s (R-4/R-5); this page
+     only groups them. */}}
+<h1>Missed sign-outs</h1>
+{{template "history_head" .}}
+<p>Visits closed by the person's own return with no sign-out recorded, at a text-message site. Camp sites are
+exempt (people live there). The same rule as the sign-out failures report.</p>
+{{template "history_filter" (dict "Page" . "Action" "/history/signouts" "Routes" nil "DateHelp" "Dates are the day the visit was signed in.")}}
+{{if .Err}}
+<div class="notice notice-critical"><strong>REPORT UNAVAILABLE</strong> — {{.Err}}. Nothing is shown, so nothing can be
+mistaken for a complete report.</div>
+{{else if not .Filter.Problems}}
+{{with .Untyped}}<div class="notice notice-warn"><strong>NOT JUDGED</strong> — this post is not told the site type of
+{{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}, so returns there are not counted either way. Its own post's report
+judges them.</div>{{end}}
+<h2 id="results">{{.Total}} missed {{if eq .Total 1}}sign-out{{else}}sign-outs{{end}}</h2>
+<p class="note">{{.Repeat.People}} {{if eq .Repeat.People 1}}person{{else}}people{{end}} and {{.Repeat.Companies}}
+{{if eq .Repeat.Companies 1}}company{{else}}companies{{end}} with more than one (repeat offenders, marked REPEAT).</p>
+
+<h3>By site</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Missed sign-outs by site (scrolls sideways)">
+<table class="plain history-table" data-history="by-site">
+  <thead><tr><th scope="col">Site</th><th scope="col">Type</th><th scope="col">Missed</th><th scope="col">People</th><th scope="col">Companies</th><th scope="col">Camp returns (exempt)</th></tr></thead>
+  <tbody>{{range .BySite}}<tr data-site="{{.SiteID}}"><th scope="row">{{.Name}}</th><td>{{.Kind}}</td>
+    <td>{{if .Known}}{{.Missed}}{{else}}not judged{{if .Uncl}} ({{.Uncl}} returns){{end}}{{end}}</td><td>{{.People}}</td><td>{{.Companies}}</td><td>{{.Exempt}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+
+{{if .ByWeek}}
+<h3>By week</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Missed sign-outs by week (scrolls sideways)">
+<table class="plain history-table" data-history="by-week">
+  <thead><tr><th scope="col">Week starting</th><th scope="col">Missed</th><th scope="col">People</th><th scope="col">Companies</th></tr></thead>
+  <tbody>{{range .ByWeek}}<tr><th scope="row">{{.WeekStart}}</th><td>{{.Missed}}</td><td>{{.People}}</td><td>{{.Companies}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+
+<h3>By person</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Missed sign-outs by person (scrolls sideways)">
+<table class="search-results history-table" data-history="by-person">
+  <thead><tr><th scope="col">Person</th><th scope="col">Missed</th><th scope="col">Per week</th><th scope="col">Where</th><th scope="col">Latest</th></tr></thead>
+  <tbody>{{range .ByPerson}}<tr{{if .Repeat}} class="history-repeat"{{end}}><th scope="row">{{.Name}}{{if .Repeat}} <span class="history-flag">REPEAT</span>{{end}}</th>
+    <td>{{.Count}}</td><td>{{.Weeks}}</td><td>{{.Sites}}</td><td>{{.Last}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+
+<h3>By company</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Missed sign-outs by company (scrolls sideways)">
+<table class="search-results history-table" data-history="by-company">
+  <thead><tr><th scope="col">Company</th><th scope="col">Missed</th><th scope="col">People</th><th scope="col">Per week</th><th scope="col">Where</th></tr></thead>
+  <tbody>{{range .ByCompany}}<tr{{if .Repeat}} class="history-repeat"{{end}}><th scope="row">{{.Name}}{{if .Repeat}} <span class="history-flag">REPEAT</span>{{end}}</th>
+    <td>{{.Count}}</td><td>{{.People}}</td><td>{{.Weeks}}</td><td>{{.Sites}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+
+<h3>Every missed sign-out</h3>
+{{template "history_csv" (dict "Href" .CSVHref "Name" "signouts" "Title" "missed sign-outs" "N" (len .Rows))}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Every missed sign-out (scrolls sideways)">
+<table class="search-results history-table" data-history="signouts">
+  <thead><tr><th scope="col">Person</th><th scope="col">Company</th><th scope="col">Site</th><th scope="col">Signed in</th><th scope="col">Closed when</th></tr></thead>
+  <tbody>{{range .Rows}}<tr><th scope="row">{{.Person}}</th><td>{{.Company}}</td><td>{{.Site}}</td><td>{{.SignedIn}}</td><td>{{.ClosedBy}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+{{else}}<p class="note">No missed sign-out in this range.</p>{{end}}
+<p class="note">Company is the one recorded at check-in, else the person's company on the roster. A person who holds
+two records counts once only where the records were linked. A missed sign-out is counted when the person's next
+visit closes it; the visit someone is still on is never counted.</p>
+{{with .Summary}}<details class="note"><summary>What was examined</summary><ul class="report-summary">{{range .}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+{{end}}
+{{template "history_foot" .}}
+{{template "page_close" .}}

@@ -1,0 +1,271 @@
+{{/* The C7 alert surface (§9.4), in TWO parts since V-01.
+
+     THE PROBLEM THIS SHAPE SOLVES. The surface used to render EVERY
+     outstanding alert inside the sticky top bar. One sync outage produces
+     18 of them; 18 rows measured 1043px against a 994px viewport, so at
+     >=11 alerts the bar painted over the entire page at every scroll
+     offset — AWAY and NOT TRACKED measured 0% visible at every scroll
+     position, and the muster's own Print button with them. The page that
+     says who is on site became unreachable exactly when the site was
+     having a bad day.
+
+     The obvious repairs are both refused:
+
+       - scrolling INSIDE the bar, or collapsing it behind <details>, would
+         satisfy the height problem by hiding alerts. "An alert that
+         requires scrolling is an alert that gets missed" — and an alert
+         behind a disclosure triangle is worse, because the page then
+         renders as though nothing is wrong.
+       - a taller bar with more rows just moves the threshold.
+
+     THE SHAPE (FIX13, James 2026-10-05). The sticky strip carries two
+     compact lines — every OVERDUE vehicle on a red one, every VERIFY BY
+     RADIO vehicle on an amber one, each as its id and people aboard,
+     at most 6 per line (2 on a phone) and then "+N more". Its height is
+     bounded by construction: two short lines whether there is one alert or
+     fifty, and the "+N more" states what did not fit, so nothing is hidden.
+     The full list, with its per-row acknowledgment, renders in the operator
+     console's body under "Outstanding alerts", BELOW the inbound board,
+     where it can be as long as it needs to be and scrolls with the page
+     like any other content; on a post each strip item links to its row
+     there. (Below the board, not above it: putting it above cost 328px at 3
+     alerts and pushed the board onto the second screen — see trips.html.)
+     ⟦was (V-01): ONE full row — the highest-severity one, with its ack form
+     — plus a persistent count sentence⟧
+
+     That distinction is the whole argument: the brief's sentence protects
+     an ALERT, and the alert — "these vehicles are outstanding, with this
+     many people aboard" — is never scrolled, never collapsed, and never
+     off-screen. A ROW in a list is not an alert.
+
+     THE ORDER MATTERS. banner() (web.go) sorts worst-first and each line
+     keeps that order, so the first items on a line — the ones a phone
+     shows — are the worst of their colour.
+
+     Expects a data value with .Banner ([]deadline.Alert) and .BannerErr
+     (string). Nothing here lives in a tab: kill the browser, open a new
+     session, and the same rows come back from the same server-side scan
+     until an arrival check-in closes the trip or an explicit
+     acknowledgment is logged as an event.
+
+     The `banner-notice` class is what excludes every row here from print —
+     a printed page (the muster sheet) is a point-in-time roster, not a
+     live alert surface. */}}
+
+{{/* ---- alert_strip: the sticky one. Bounded height, always visible. ---- */}}
+{{define "alert_strip"}}
+{{/* A-27 (L14), 2026-10-03: the strip is a LIVE REGION — role="alert"
+     (implicitly aria-live="assertive"), stated explicitly as well, and
+     aria-atomic so its lines are read as one message. A page is a fresh
+     document on every load here (no script, no polling), so the attributes
+     do what a static page can do for assistive tech: name the region as an
+     alert and read it whole. Rendered only when there is something to
+     announce — an empty live region announces nothing and would still be
+     one more landmark on every page. */}}
+{{/* FIX13 (James, 2026-10-05: "a concise shortened list of the overdue
+     trucks and number of pax instead of the large banner just a small list
+     with truck number and number of people"). ⟦was (V-01): the ONE most
+     urgent alert row in full — direction, origin, driver, due time, its ack
+     form — plus a count sentence ("2 OVERDUE · 1 VERIFY BY RADIO — showing
+     the most urgent of 3. All 3 are listed on the operator console …")⟧
+     Now: one RED line naming every overdue vehicle and one AMBER line every
+     VERIFY BY RADIO vehicle, each item the vehicle id then its people aboard
+     (Occupants — StillAboard's count, F15), road work included the same
+     way. Each line shows at most 6 (2 on a phone, within two lines) and
+     then "+N more"; nothing is collapsed and nothing scrolls, so V-01's
+     bound still holds: two lines whatever the total. The full rows — and
+     the Acknowledge forms, which the strip no longer carries — are under
+     "Outstanding alerts" on /trips, and on a post each item links to its
+     own row there (#alert-<trip>). The dispatch view (AlertsReadOnly)
+     renders the same items as plain text: no link into the console and no
+     form (FIX7). Each item's accessible name is spoken in words —
+     "TRK-19, overdue, 3 people aboard" — and the bracketed figure is not
+     read on its own. */}}
+{{if or .BannerErr .Banner}}{{$tally := alerttally .Banner}}<div class="alert-strip" id="alert-strip" role="alert" aria-live="assertive" aria-atomic="true"{{if .Banner}} data-alert-total="{{$tally.Total}}" data-alert-overdue="{{$tally.Overdue}}" data-alert-verify="{{$tally.Verify}}"{{end}}>
+{{with .BannerErr}}
+{{/* A scan failure outranks every alert: the box cannot currently say
+     whether anything is overdue at all. It is one line and it is never
+     summarised away. */}}
+<div class="notice notice-fault banner-notice"><strong>DEADLINE SCAN FAILED</strong> — the system cannot currently
+evaluate overdue vehicles; fall back to radio procedure. ({{.}})</div>
+{{end}}
+{{if .Banner}}
+{{$strip := alertstrip .Banner}}
+{{$ro := false}}{{if has . "AlertsReadOnly"}}{{$ro = field . "AlertsReadOnly"}}{{end}}
+{{/* On /trips itself (it carries Review) the links stay on the page. */}}
+{{$console := "/trips"}}{{if has . "Review"}}{{$console = ""}}{{end}}
+{{with $strip.Overdue.Items}}
+<div class="notice notice-critical banner-notice alert-line" data-alert-line="overdue">
+  <strong class="alert-line-kind">OVERDUE:</strong>
+  <ul class="alert-items">
+  {{- range . -}}
+    <li class="alert-item{{if .WideOnly}} alert-item-wide{{end}}" data-alert-item="{{.Status}}" data-trip-id="{{.TripID}}"{{if .RoadWork}} data-alert-road-work="true"{{end}}>
+    {{- if $ro}}<span class="alert-item-text">{{template "alert_item" (dict "A" . "Kind" "overdue")}}</span>
+    {{- else}}<a href="{{$console}}#alert-{{.TripID}}">{{template "alert_item" (dict "A" . "Kind" "overdue")}}</a>{{end -}}
+    </li>
+  {{- end}}
+  {{- template "alert_more" (dict "N" $strip.Overdue.MoreWide "Phone" false "RO" $ro "Console" $console "Kind" "overdue")}}
+  {{- template "alert_more" (dict "N" $strip.Overdue.MorePhone "Phone" true "RO" $ro "Console" $console "Kind" "overdue")}}
+  </ul>
+</div>
+{{end}}
+{{with $strip.Verify.Items}}
+<div class="notice notice-warn banner-notice alert-line" data-alert-line="verify">
+  <strong class="alert-line-kind">VERIFY BY RADIO:</strong>
+  <ul class="alert-items">
+  {{- range . -}}
+    <li class="alert-item{{if .WideOnly}} alert-item-wide{{end}}" data-alert-item="{{.Status}}" data-trip-id="{{.TripID}}"{{if .RoadWork}} data-alert-road-work="true"{{end}}>
+    {{- if $ro}}<span class="alert-item-text">{{template "alert_item" (dict "A" . "Kind" "verify by radio")}}</span>
+    {{- else}}<a href="{{$console}}#alert-{{.TripID}}">{{template "alert_item" (dict "A" . "Kind" "verify by radio")}}</a>{{end -}}
+    </li>
+  {{- end}}
+  {{- template "alert_more" (dict "N" $strip.Verify.MoreWide "Phone" false "RO" $ro "Console" $console "Kind" "to verify by radio")}}
+  {{- template "alert_more" (dict "N" $strip.Verify.MorePhone "Phone" true "RO" $ro "Console" $console "Kind" "to verify by radio")}}
+  </ul>
+</div>
+{{end}}
+{{end}}
+</div>{{end}}
+{{end}}
+
+{{/* alert_item: one strip item — "TRK-19 (3)" on glass (vehicle first,
+     Q-FH1), "TRK-19, overdue, 3 people aboard" to a screen reader. A
+     numberless truck shows its direction instead; no stand-in id is
+     invented (DR-W7-15). */}}
+{{define "alert_item"}}{{with .A}}<span aria-hidden="true">{{if .Vehicle}}<code>{{.Vehicle}}</code>{{else}}{{template "alert_lead" .}}{{end}} ({{.Occupants}})</span><span class="sr-only">{{if .Vehicle}}{{.Vehicle}}{{else}}vehicle {{if .RoadWork}}on the road{{else if .Outbound}}outbound{{else}}inbound{{end}}{{end}}, {{$.Kind}}{{if .RoadWork}} on the road{{end}}, {{.Occupants}} {{if eq .Occupants 1}}person{{else}}people{{end}} aboard</span>{{end}}{{end}}
+
+{{/* alert_more: the "+N more" tail of a line — one for wide screens, one
+     for phones (CSS shows exactly one). A link to the full list on a post,
+     plain text on the dispatch view. */}}
+{{define "alert_more"}}{{if .N -}}
+    <li class="alert-more {{if .Phone}}alert-more-phone{{else}}alert-more-wide{{end}}" data-alert-more="{{.N}}">
+    {{- if .RO}}+{{.N}} more<span class="sr-only"> {{.Kind}}</span>
+    {{- else}}<a href="{{.Console}}#outstanding-alerts">+{{.N}} more<span class="sr-only"> {{.Kind}}, listed under Outstanding alerts on the operator console</span></a>{{end -}}
+    </li>{{end}}{{end}}
+
+{{/* ---- alert_list: the full list, in the page BODY on /trips. ---- */}}
+{{define "alert_list"}}
+{{range .Banner}}{{template "alert_row" .}}{{end}}
+{{end}}
+
+{{/* ---- one alert row, shared by both surfaces so they can never drift
+     into saying different things about the same trip. ---- */}}
+{{/* F6 §5 R2 (W9c, item 17): every branch below carries .RepudiationFace —
+     "previously acknowledged by X, un-acknowledged by Y" — because a row
+     that RETURNED to unacknowledged must be observably different from one
+     that was never acknowledged. Without it, an officer who acknowledged
+     this trip ten minutes ago sees a red row byte-identical to a fresh
+     alert, concludes the ack did not take, and re-acknowledges — overruling
+     the peer who repudiated it, without ever being shown that anyone did.
+
+     .AckFace (R1, "acknowledged by <post>") is deliberately NOT rendered on
+     this surface: Banner() drops every acked row (scan.go), so an ack
+     attribution here could never fire — a branch whose only possible
+     outcome is nothing. R1's surface is the /trips board row, which renders
+     acked and unacked expectations alike (trips.html). */}}
+{{define "alert_row"}}
+{{/* James, 2026-10-03: a ROAD-WORK row (.RoadWork) is the same alert
+     machinery with different words — the figure is read against a WORKING
+     LIMIT, the vehicle is OUT from this post rather than inbound to it, and
+     the fix is checking it back in. Same ack, same scope, same form. */}}
+{{/* James, 2026-10-03 — NEW-a: an OUTBOUND row (.Outbound) is a truck THIS
+     post sent out, read against the allowance from this post's own dispatch
+     instant; the far post named is the DESTINATION, whose unheard arrival
+     record is what would make this red a false one. Same ack, same scope,
+     same form — acknowledged at either post, it clears at both. */}}
+{{/* Q-FH1 (James, 2026-10-04): every row LEADS WITH THE VEHICLE ID AND
+     DIRECTION, then the verdict — "TRK-19 outbound — OVERDUE 3m12s",
+     "TRK-19 inbound — VERIFY BY RADIO …". The phone strip keeps its 2-line
+     clamp, and L10 measured that at 320-375 px only the first ~35
+     characters survive it: the old order ("VERIFY BY RADIO (weather):
+     outbound …") spent them on the verdict and cut the vehicle, origin and
+     driver. The verdict word stays inside the <strong>, so the row still
+     states its kind in words, not hue (M-09). ⟦was: "<strong>VEHICLE
+     OVERDUE:</strong> <code>V</code> from …", "<strong>VERIFY BY
+     RADIO:</strong> inbound <code>V</code> …"⟧
+     Q-FE2 (James, 2026-10-04): a row whose due time is on record
+     (.DueClock) says it on the origin's clock — "due about 11:07 by 2P Ice
+     Road Entrance's clock" — and a no-receipt-timing amber says that
+     instead of OVERDUE.
+     R6-1.8a (fix4 H, 2026-10-05): at 320 px an OUTBOUND red kept only
+     "TRK-62 outbound —" inside the clamp; OVERDUE fell on line 3. The lead
+     and the verdict are now their own spans, and on a phone (_styles.html)
+     each takes ONE line of the two, ellipsised — the vehicle id still first,
+     and the verdict word always on line 2 however long the id is. The
+     separator is its own span so the text still reads "TRK-62 outbound —
+     OVERDUE 4s" everywhere else, and to a screen reader. */}}
+{{if eq .Status "overdue_live"}}
+<div class="notice notice-critical banner-notice" id="alert-{{.TripID}}" data-alert-row="overdue_live"{{if .RoadWork}} data-alert-road-work="true"{{end}}{{if .Outbound}} data-alert-outbound="true"{{end}}>
+  <strong><span class="alert-lead">{{template "alert_lead" .}}</span><span class="alert-sep"> — </span><span class="alert-verdict">OVERDUE {{.OverdueByText}}</span></strong>
+  {{- if .RoadWork}} — equipment out from {{sitelabel .Origin}} working on the road, {{.Occupants}} aboard{{with .Driver}} (driver {{.}}){{end}},
+  past its {{.LimitText}} working limit.
+  {{- else if .Outbound}} — sent from {{sitelabel .Origin}} to {{sitelabel .Destination}}, {{.Occupants}} aboard{{with .Driver}} (driver {{.}}){{end}}.
+  {{- else}} — from {{sitelabel .Origin}}, {{.Occupants}} aboard{{with .Driver}} (driver {{.}}){{end}}.
+  {{- end}}{{with .DueClock}} Was due about {{.}} by {{sitelabel $.Origin}}'s clock.{{end}}{{with .StalenessFace}} <em>{{.}}.</em>{{end}}{{with .RepudiationFace}}
+  <strong>{{.}}.</strong>{{end}}
+  <form method="post" action="/alerts/ack">
+    <input type="hidden" name="trip_id" value="{{.TripID}}">
+    <button type="submit">Acknowledge (logged)</button>
+  </form>
+</div>
+{{/* ⟦was: the "phase_review" arm — VERIFY BY RADIO (weather), the
+     in-transit weather-phase row with its phase-scoped ack and un-ack
+     forms; weather phases removed, James 2026-10-04⟧ */}}
+{{else}}
+<div class="notice notice-warn banner-notice" id="alert-{{.TripID}}" data-alert-row="{{.Status}}"{{if .RoadWork}} data-alert-road-work="true"{{end}}{{if .Outbound}} data-alert-outbound="true"{{end}}>
+  <strong><span class="alert-lead">{{template "alert_lead" .}}</span><span class="alert-sep"> — </span><span class="alert-verdict">VERIFY BY RADIO{{if and .DeadlineUnknown (not .ClockChanged)}} — no receipt timing at this post{{end}}</span></strong>
+  {{- if .RoadWork}} — out from {{sitelabel .Origin}} working on the road (limit {{.LimitText}})
+  {{- else if .Outbound}} — sent from {{sitelabel .Origin}} to {{sitelabel .Destination}}
+  {{- else}} — from {{sitelabel .Origin}}{{end}},
+  {{.Occupants}} aboard{{with .Driver}} (driver {{.}}){{end}} — {{.Reason}}{{with .DueClock}}; due about {{.}} by {{sitelabel $.Origin}}'s clock{{end}}.{{with .RepudiationFace}} <strong>{{.}}.</strong>{{end}}
+  <form method="post" action="/alerts/ack">
+    <input type="hidden" name="trip_id" value="{{.TripID}}">
+    <button type="submit">Acknowledge (logged)</button>
+  </form>
+</div>
+{{end}}
+{{end}}
+
+{{/* alert_lead: the vehicle id (verbatim, M8) and the run's direction —
+     the first words of every alert row (Q-FH1). A numberless truck leads
+     with its direction alone; no stand-in text is invented (DR-W7-15). */}}
+{{define "alert_lead"}}{{with .Vehicle}}<code>{{.}}</code> {{end}}{{if .RoadWork}}on the road{{else if .Outbound}}outbound{{else}}inbound{{end}}{{end}}
+
+{{/* alert_banner is kept as the name the top bar mounts, so the mount point
+     stays one line and this file owns which surface it maps to. */}}
+{{define "alert_banner"}}{{template "alert_strip" .}}{{end}}
+
+{{/* ---- lost_signal: FIX15 (James, 2026-10-06), the strip's LOST SIGNAL
+     line (lostsignal.go builds the data and draws it into the top bar's
+     slot per request). One line, whatever the number of sites: on the
+     dispatch host each lost site with its last-heard time, or — when the
+     serving post has lost EVERY peer — one sentence saying the dispatch
+     server itself is cut off; on a post, the sites its entries are not
+     reaching. Dashed like the other machinery fault (notice-fault), so it
+     is not read as one more overdue vehicle. Plain text, no link and no
+     form on either host. NOT a live region (the file comment says why);
+     each site's spoken name is "NPF, lost signal, last heard 8 minutes
+     ago", the bracketed short form is hidden from it. The title states the
+     threshold. ---- */}}
+{{define "lost_signal"}}<div class="notice notice-fault banner-notice alert-line lost-signal" id="lost-signal" data-lost-signal="{{if .All}}all{{else}}sites{{end}}" data-lost-count="{{len .Sites}}" title="{{.Rule}}">
+  <strong class="alert-line-kind">LOST SIGNAL:</strong>
+  {{- if .Dispatch}}
+  {{- if .All}} <span data-lost-all>Dispatch server ({{.Serving}}) can't reach any site — figures may be out of date</span><span class="sr-only">.{{range .Sites}} {{.Spoken}}.{{end}}</span>
+  {{- else}}
+  <ul class="alert-items">
+  {{- range .Sites}}
+    <li class="alert-item lost-site" data-lost-site="{{.SiteID}}"><span aria-hidden="true"><span class="lost-wide">{{.Name}} — {{.Heard}}</span><span class="lost-phone">{{.Name}} {{.HeardAt}}</span></span><span class="sr-only">{{.Spoken}}</span></li>
+  {{- end}}
+  </ul>
+  {{- end}}
+  {{- else}}
+  {{- if .All}} <span data-lost-all>can't reach any other site — your entries reach them when the link returns</span><span class="sr-only">.{{range .Sites}} {{.Spoken}}.{{end}}</span>
+  {{- else}} can't reach
+  <ul class="alert-items">
+  {{- range .Sites}}
+    <li class="alert-item lost-site" data-lost-site="{{.SiteID}}"><span aria-hidden="true">{{.Name}}<span class="lost-wide"> ({{.When}})</span></span><span class="sr-only">{{.Spoken}}</span></li>
+  {{- end}}
+  </ul> — your entries reach them when the link returns
+  {{- end}}
+  {{- end}}
+</div>{{end}}

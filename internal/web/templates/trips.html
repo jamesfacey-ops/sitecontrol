@@ -1,0 +1,506 @@
+{{template "page_open" (dict
+  "Title" (printf "Operator console — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* trips.html — U2's OPERATOR CONSOLE.
+
+     This page used to be six unrelated sections stacked vertically: review
+     lane, inbound board, all trips, out-at-pad, visits, and two big forms.
+     Half of it answered "what do I do with this truck?" and half answered
+     "what does the record say?", and the operator scrolled through the
+     second half with a driver waiting at the window.
+
+     What is here now is only the first half: what needs a human, what is
+     inbound, and the two things a person at the window does — a vehicle is
+     leaving, a vehicle has arrived. The reference tables moved verbatim to
+     /trips/detail. Every route, POST target and form field name is
+     unchanged.
+
+     The recording-post chip and the C7 deadline banner ride the shared top bar
+     (_topbar.html) — same forms, same actions, never scrolled away. */}}
+<h1>Operator console <small>({{sitelabel .SiteID}})</small></h1>
+{{template "time_warnings" .TimeWarnings}}
+{{/* ⟦H-8 / T-084 / T-093, 2026-09-29⟧ the ORIENTATION hold-out notice for
+     both console arrival doors (POST /trips/arrive, /trips/arrive-
+     unsolicited), which redirect here. The ids rode the redirect from the
+     start and this page never rendered them — the officer who had just
+     held someone out at the gate saw the board row vanish and nothing
+     else, while /gate and /gate/vehicle rendered the SAME key. This is the
+     shared define from gate_vehicle.html (html/template's one global
+     namespace — see that file's header), so the wording here IS the
+     locked NOT ENTERED wording, not a second copy of it: names the person,
+     states the consequence, links the page that fixes it (R-9). */}}
+{{template "not_entered_notices" .NotEntered}}
+
+{{/* The review lane keeps its explicit empty state: a section that vanishes
+     when it has nothing to say is indistinguishable from a section that
+     never ran. */}}
+<h2>Needs a human</h2>
+{{/* V-01: the FULL alert list moved out of the sticky top bar and into this
+     page's body — but BELOW the inbound board, not above it. Both halves of
+     that placement are deliberate and both were measured.
+
+     Out of the bar, because at 18 alerts the in-bar list measured 1043px
+     against a 994px viewport and painted over the whole page — muster
+     included — at every scroll offset. The bar now carries a compact list
+     — vehicle id and people aboard, at most 6 per colour then "+N more"
+     (FIX13; ⟦was: the worst single alert plus a persistent count⟧) —
+     bounded by construction.
+
+     Below the board, because putting it here instead cost 328px at 3
+     alerts and pushed the inbound board from the first screen to the
+     second: the operator with a truck at the window scans the BOARD, and
+     the alerting trips are already on it, sorted worst-first, at the top.
+     What lives below the board is the acknowledgment queue — the work you
+     do after the scan, not the scan.
+
+     So this lane keeps a one-line pointer, and the list itself is under
+     "Outstanding alerts" further down. */}}
+{{if .Banner}}
+{{$tally := alerttally .Banner}}
+<p><small class="note"><strong>{{$tally.Total}} outstanding alert(s)</strong> — named in the
+bar above and every one of them is on the board below. <a href="#outstanding-alerts">The full list, with
+each row's own acknowledgment, is under &ldquo;Outstanding alerts&rdquo;</a>.</small></p>
+{{end}}
+{{range .Review}}{{$row := .}}
+<div class="notice notice-warn" data-review-kind="{{.Kind}}"><strong>{{.Label}}</strong>: {{.Detail}}
+{{/* James, 2026-09-30: officer resolution of parked arrivals (Option 1).
+     One PLAIN FORM per candidate plus "None of these" — hidden fields, no
+     script, so it works with JS off. A candidate since closed gets no
+     button and says who closed it; a post that did not record the arrival
+     gets no controls at all (D-87). */}}
+{{if .Resolve}}
+<div class="resolve-parked" data-resolve-arrival="{{.Resolve.ArrivalID}}">
+{{range .Resolve.Candidates}}
+  {{if .Arrived}}
+  <p><small>Trip <code>{{.TripID}}</code>{{if .Label}} — {{.Label}}{{end}} — <strong>since arrived</strong>{{if .ArrivedAt}}
+  (checked in at {{.ArrivedAt}}){{end}}; it cannot be chosen.</small></p>
+  {{else}}
+  <form method="post" action="/arrivals/resolve" class="resolve-parked-form">
+    <input type="hidden" name="arrival_id" value="{{$row.Resolve.ArrivalID}}">
+    <input type="hidden" name="trip_id" value="{{.TripID}}">
+    <button type="submit" name="resolve_trip" value="{{.TripID}}">This was trip {{.TripID}}{{if .Label}} — {{.Label}}{{end}}</button>
+  </form>
+  {{end}}
+{{end}}
+  <form method="post" action="/arrivals/resolve" class="resolve-parked-form">
+    <input type="hidden" name="arrival_id" value="{{$row.Resolve.ArrivalID}}">
+    <input type="hidden" name="none" value="1">
+    <button type="submit" name="resolve_none" value="1">None of these (plain visit)</button>
+  </form>
+</div>
+{{end}}
+</div>
+{{else}}{{if not .Banner}}<p><em>Nothing awaiting review.</em></p>{{end}}{{end}}
+
+<h2>Inbound — open expectations for {{sitelabel .SiteID}}</h2>
+{{range .Board}}
+{{/* data-urgency drives BOTH the stripe and the word in .board-urgency:
+     state is never carried by hue alone (UI brief). The word is the same
+     judgement the C7 scan already made — this row invents nothing. */}}
+<article class="board-row" data-urgency="{{.Urgency}}">
+  <div class="board-lead">
+    <span class="board-urgency">{{.UrgencyLabel}}</span>
+    {{/* Countdown = the NUMERAL only (see boardRow's comment): a prose
+         status rendered at 2.5rem produced a four-line headline. The words
+         that qualify it sit underneath at ordinary size, and together they
+         are the same sentence the C7 scan produced. */}}
+    <span class="countdown">{{.CountdownValue}}</span>
+    <span class="board-lead-label">Countdown — {{.CountdownNote}}</span>
+  </div>
+  <div class="board-facts">
+    <p class="board-vehicle"><code>{{.Vehicle}}</code> <span class="board-from">from {{sitelabel .Origin}}</span></p>
+    <dl class="board-dl">
+      <dt>Driver</dt><dd>{{.Driver}}</dd>
+      <dt>Occupants</dt><dd>{{.Occupants}}</dd>
+      <dt>Deadline</dt><dd class="mono">{{.Deadline}}</dd>
+      <dt>Staleness</dt><dd class="mono">{{.Staleness}}</dd>
+    </dl>
+    {{/* F6 §5 R2 (W9c, item 17): a trip whose acknowledgment was withdrawn
+         says so on its own row, whether it is currently acked or not.
+         Returned-to-unacknowledged must not render identically to
+         never-acknowledged, or the officer who acked it re-acks in
+         ignorance of the peer who repudiated it. */}}
+    {{with .Repudiation}}<p class="board-face"><strong>{{.}}</strong></p>{{end}}
+    {{/* F6 §3.4 (W9c, item 17): the plain-scope un-ack control. Banner()
+         drops acked rows, so this board row is the ONLY place on /trips an
+         acknowledged expectation appears — which makes it the only place the
+         correction can be reached from. One click withdraws EVERY standing
+         acknowledgment for the trip: two posts can each have acked before
+         either replicated, and retracting one of them would leave the banner
+         silent while the click reported success. */}}
+    {{/* F4 (FINDINGS-R5): an ack that stands but does NOT silence this row
+         — the far end's amber ack on a row that is red here — is named, and
+         offers no un-ack: "put this alert back" would be false on a row
+         that is still alerting. ⟦was: Unackable on any standing ack⟧ */}}
+    {{with .VerifyOnlyAck}}<p class="board-face" data-verify-only-ack><strong>{{.}}</strong></p>{{end}}
+    {{if .Unackable}}
+    <form method="post" action="/alerts/unack">
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      <button type="submit">Un-acknowledge (logged) — put this alert back</button>
+    </form>
+    {{end}}
+  </div>
+  <div class="board-action">
+    {{/* SAFE DEFAULT for this action — derived for ARRIVAL, not copied
+         from the dispatch form below.
+
+         An arrival ADDS people to the muster. Every occupant is therefore
+         pre-included (no checkbox is `checked`), and ticking one is the
+         exception: "this person did not come in on this vehicle". A missed
+         tick checks in somebody who is not actually here — the muster
+         OVER-reports, which wastes search time but never hides a live
+         person. The opposite default (tick to check in) would mean a
+         forgotten tick leaves a person who IS here off the muster
+         entirely, which is the direction that gets somebody killed.
+
+         This is the exact inverse of the dispatch and check-out pickers,
+         and the inversion is the point: the safe default follows whether
+         the action adds or removes somebody, never the widget. */}}
+    <form method="post" action="/trips/arrive" data-confirm-stayed>
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      {{range .OccupantRows}}
+      <label class="stayed"><input type="checkbox" name="stayed_person_ids" value="{{.PersonID}}">
+        <span data-stayed-name>{{.Name}}</span> stayed behind — do not check in</label>
+      {{end}}
+      {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+      <button type="submit" class="button-primary">Arrived — check in occupants (unticked rows)</button>
+    </form>
+  </div>
+</article>
+{{else}}<p><em>No open inbound expectations.</em></p>{{end}}
+<small class="note">Countdown and staleness are sourced from the server-side deadline scan
+(C7, §9.4): the countdown is X−G on this box's clock from receipt, an expectation whose
+deadline passed while the link was down reads "overdue-unresolved — verify by radio", a run
+this post has no receipt timing for says so, with its due time on the origin's clock, and turns
+red when that time passes, and none of it lives in this tab. Vehicle ids display exactly as entered. The most urgent row is
+first.</small>
+
+{{/* James, 2026-10-03 — NEW-a: THE OUTBOUND BOARD. The controlled runs THIS
+     post sent out, each with the scan's own verdict: until today only the
+     destination scanned a trip, so the crew who dispatched a truck learned
+     it was late only by radio (L08 T-L08-B). The origin counts on its own
+     clock from its own dispatch instant (deadline/scan.go, the road-work
+     basis), the destination on its own from receipt; neither reads the
+     other's clock, and the trip-scoped ack — the same logged event the bar
+     carries — clears the row at both. Labels read "OUTBOUND — …" so a row
+     from each board is unambiguous on its own. The arrival is normally
+     recorded at the far end and closes this row when it replicates.
+     James, 2026-10-03: a truck that TURNED BACK is recorded here instead —
+     "Arrived back here" (POST /trips/returned, domain/trip_return.go): an
+     ordinary arrival on this post's stream that closes the trip as
+     returned, puts the crew back on this post's muster and clears the
+     alert at both posts. Same safe default as every arrival: everyone
+     comes in unless ticked. ⟦was: "No arrival form here"⟧ Rendered wherever this post can dispatch to a controlled
+     destination, with an explicit empty state (a section that vanishes is
+     indistinguishable from one that never ran). */}}
+{{if .ShowOutbound}}
+<h2 id="outbound">Outbound — on the road from {{sitelabel .SiteID}}</h2>
+{{range .Outbound}}
+<article class="board-row" data-urgency="{{.Urgency}}" data-outbound="true">
+  <div class="board-lead">
+    <span class="board-urgency">{{.UrgencyLabel}}</span>
+    <span class="countdown">{{.CountdownValue}}</span>
+    <span class="board-lead-label">Countdown — {{.CountdownNote}}</span>
+  </div>
+  <div class="board-facts">
+    <p class="board-vehicle"><code>{{.Vehicle}}</code> <span class="board-from">to {{sitelabel .Destination}}</span></p>
+    <dl class="board-dl">
+      <dt>Driver</dt><dd>{{.Driver}}</dd>
+      <dt>Occupants</dt><dd>{{.Occupants}}</dd>
+      <dt>Deadline</dt><dd class="mono">{{.Deadline}}</dd>
+      <dt>Staleness</dt><dd class="mono">{{.Staleness}}</dd>
+    </dl>
+    {{with .Repudiation}}<p class="board-face"><strong>{{.}}</strong></p>{{end}}
+    {{/* F6 §3.4: an ACKED outbound row appears only here (Banner() drops
+         acked rows), so the plain-scope un-ack has to be reachable here too. */}}
+    {{/* F4 (FINDINGS-R5): an ack that stands but does NOT silence this row
+         — the far end's amber ack on a row that is red here — is named, and
+         offers no un-ack: "put this alert back" would be false on a row
+         that is still alerting. ⟦was: Unackable on any standing ack⟧ */}}
+    {{with .VerifyOnlyAck}}<p class="board-face" data-verify-only-ack><strong>{{.}}</strong></p>{{end}}
+    {{if .Unackable}}
+    <form method="post" action="/alerts/unack">
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      <button type="submit">Un-acknowledge (logged) — put this alert back</button>
+    </form>
+    {{end}}
+  </div>
+  <div class="board-action">
+    <p><small class="note">Closes when {{sitelabel .Destination}} records the arrival and it replicates here. An
+      overdue outbound truck is acknowledged in the bar or under &ldquo;Outstanding alerts&rdquo; — the
+      same logged acknowledgment at either post clears it at both.</small></p>
+    <form method="post" action="/trips/returned" data-confirm-stayed data-returned-form>
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      {{range .OccupantRows}}
+      <label class="stayed"><input type="checkbox" name="stayed_person_ids" value="{{.PersonID}}">
+        <span data-stayed-name>{{.Name}}</span> did not come back — do not check in</label>
+      {{end}}
+      {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+      <button type="submit">Arrived back here — it turned back; check in everyone not marked</button>
+    </form>
+    <p><small class="note">Only if the truck turned back and is at {{sitelabel $.SiteID}} again: the trip closes as
+      returned (it never reached {{sitelabel .Destination}}), the people aboard are back on this post&rsquo;s
+      muster, and the alert clears at both posts.</small></p>
+  </div>
+</article>
+{{else}}<p><em>Nothing {{sitelabel .SiteID}} sent out is still on the road.</em></p>{{end}}
+<small class="note">The same server-side scan as the inbound board, from this post&rsquo;s own dispatch
+instant on this post&rsquo;s clock. The staleness column names the destination: an arrival recorded there
+and not yet replicated here is what would make an outbound red a false one.</small>
+{{end}}
+
+{{/* The acknowledgment queue (V-01). Every outstanding alert in full, most
+     urgent first, each with the same logged ack it carried in the bar. This
+     is the surface the sticky strip summarises: it may be any length,
+     because it scrolls with the page like every other section rather than
+     occupying a fixed bar. */}}
+{{if .Banner}}
+{{$tally := alerttally .Banner}}
+<h2 id="outstanding-alerts">Outstanding alerts — all {{$tally.Total}}</h2>
+<p><small class="note">Most urgent first, the same order the bar lists them in. Each vehicle in the bar
+links to its row here, which is where it is acknowledged (a logged event).</small></p>
+{{template "alert_list" .}}
+{{end}}
+
+{{/* James, 2026-10-03 — WORKING ON THE ROAD. Equipment this post (or another)
+     sent out onto the road itself, with no destination post. Its own section,
+     never a row on the inbound board above: nothing here is expected to
+     arrive anywhere, and a reader scanning the board for what is coming in
+     must not count it. Own rows carry the C7 scan's verdict against the
+     configured working LIMIT — "working" until the limit, OVERDUE after —
+     and the "back from the road" check-in (the ordinary expected-arrival
+     door, POST /trips/arrive). Another post's run carries no clock here (the
+     owning post's banner has it) and the "arrived here instead" door, because
+     the vehicle arrives where it arrives (D-96). Plain forms, no script:
+     works with JS off. */}}
+{{if .RoadWork}}
+<h2 id="road-work">Working on the road</h2>
+<p><small class="note">Equipment out on the road itself — no destination post, no arrival expected elsewhere.
+A run is <strong>working</strong> until it has been out longer than its post&rsquo;s configured limit, then
+<strong>OVERDUE</strong>. It closes when it checks back in.</small></p>
+{{range .RoadWork}}
+<article class="board-row" data-urgency="{{.Urgency}}" data-road-work="{{if .Own}}own{{else}}foreign{{end}}">
+  <div class="board-lead">
+    <span class="board-urgency">{{.UrgencyLabel}}</span>
+    <span class="board-lead-label">{{if .Own}}{{with .Countdown}}{{.}}{{else}}working — limit {{.Limit}}{{end}}{{else}}working — limit {{.Limit}}; the clock for this run is held at {{.OriginName}}{{end}}</span>
+  </div>
+  <div class="board-facts">
+    <p class="board-vehicle"><code>{{.Vehicle}}</code> <span class="board-from">out from {{sitelabel .Origin}}, working on the road</span></p>
+    <dl class="board-dl">
+      <dt>Driver</dt><dd>{{.Driver}}</dd>
+      <dt>Aboard</dt><dd>{{len .Occupants}}</dd>
+      <dt>Working limit</dt><dd class="mono">{{.Limit}}</dd>
+      {{if .Own}}<dt>Staleness</dt><dd class="mono">{{with .StalenessFace}}{{.}}{{else}}—{{end}}</dd>{{end}}
+    </dl>
+    {{with .Repudiation}}<p class="board-face"><strong>{{.}}</strong></p>{{end}}
+    {{/* F4 (FINDINGS-R5): an ack that stands but does NOT silence this row
+         — the far end's amber ack on a row that is red here — is named, and
+         offers no un-ack: "put this alert back" would be false on a row
+         that is still alerting. ⟦was: Unackable on any standing ack⟧ */}}
+    {{with .VerifyOnlyAck}}<p class="board-face" data-verify-only-ack><strong>{{.}}</strong></p>{{end}}
+    {{if .Unackable}}
+    <form method="post" action="/alerts/unack">
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      <button type="submit">Un-acknowledge (logged) — put this alert back</button>
+    </form>
+    {{end}}
+  </div>
+  <div class="board-action">
+    {{/* SAFE DEFAULT: the ARRIVAL derivation, same as the inbound board —
+         everyone comes in unless ticked; a missed tick over-reports the
+         muster (safe), the inverse leaves a returned crew member off it. */}}
+    <form method="post" action="/trips/arrive" data-confirm-stayed>
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      {{range .Occupants}}
+      <label class="stayed"><input type="checkbox" name="stayed_person_ids" value="{{.PersonID}}">
+        <span data-stayed-name>{{.Name}}</span> stayed out — do not check in</label>
+      {{end}}
+      {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+      <button type="submit" class="button-primary">{{if .Own}}Back from the road — check in everyone not marked as stayed{{else}}Arrived here instead — check in everyone not marked as stayed{{end}}</button>
+    </form>
+  </div>
+</article>
+{{end}}
+{{end}}
+
+{{if .Returns}}
+<h2>Back from a pad</h2>
+{{range .Returns}}
+<article class="board-row" data-urgency="none">
+  <div class="board-facts">
+    <p class="board-vehicle"><code>{{.Vehicle}}</code> <span class="board-from">at {{.Destination}}</span></p>
+  </div>
+  <div class="board-action">
+    {{/* SAFE DEFAULT: same ARRIVAL derivation as the inbound board above —
+         everyone comes in unless ticked. A missed tick over-reports the
+         muster (safe); the inverse would leave a returned crew member off
+         it (dangerous). */}}
+    <form method="post" action="/trips/arrive" data-confirm-stayed>
+      <input type="hidden" name="trip_id" value="{{.TripID}}">
+      {{$pad := .Pad}}
+      {{range .ReturnManifest}}
+      <label class="stayed"><input type="checkbox" name="stayed_person_ids" value="{{.PersonID}}">
+        <span data-stayed-name>{{.Name}}</span> stayed at {{$pad}} — remains off site</label>
+      {{end}}
+      {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+      <button type="submit" class="button-primary">Returned — check in everyone not marked as stayed</button>
+    </form>
+  </div>
+</article>
+{{end}}
+{{end}}
+
+<h2>A vehicle is leaving {{sitelabel .SiteID}}</h2>
+{{/* ⟦was: the weather-phase notice ("Phase N is in effect …", the NO NEW
+     DEPARTURES explanation and the unknown-phase warning) — weather phases
+     removed, James 2026-10-04 */}}
+{{/* data-confirm-picker names BOTH pickers this form submits (V-04). The
+     driver radios live in their own sibling picker, so a form that named
+     only occupant-picker understated the muster effect by one on every
+     dispatch and gave a mis-clicked driver radio no review step at all.
+     The list is space-separated; _picker.html's collector iterates it and
+     de-duplicates, because the driver is always an occupant. */}}
+<form method="post" action="/trips/dispatch" data-confirm-picker="driver-picker occupant-picker" data-confirm-verb="check out of this site">
+  <fieldset>
+    <legend>vehicle leaving</legend>
+    {{/* ⟦SchemaVersion 13, R-17, 2026-09-11⟧ `required` REMOVED — was:
+         `<input name="vehicle" required>`. This is the operator console,
+         the third of the choke point's three callers (alongside the
+         gate's inbound and outbound forms), and it gets the SAME
+         "Vehicle unknown" escape they do: ticking the box below ignores
+         this field and records the departure with no vehicle identified
+         at all (trip.vehicle_unidentified), enforced by dispatchTrip on
+         every authoring path including a raw POST — this attribute was
+         never the real guard. */}}
+    <p><label>Vehicle id (stored exactly as typed): <input name="vehicle"></label></p>
+    <p class="field">
+      <label><input type="checkbox" id="vehicle-unidentified-console" name="vehicle_unidentified" value="1">
+      Vehicle unknown — this post cannot say what it was (a text-message report with no truck number, a
+      bus or van with no unit number)</label>
+      <small class="note">Still records the departure and still needs a destination below. Recorded as
+      an explicit, reviewable "Vehicle unknown" — never left blank. Prefer typing the real number above
+      when you have it; use this only when you genuinely do not.</small>
+    </p>
+
+    <p class="field-label">Driver <small class="note">The driver is always an occupant. Scoped to the
+      {{.OnSiteCount}} people recorded on site here — somebody who is not on that list is not
+      recorded as being here, so check them in at the gate first.</small></p>
+    {{template "person_picker" .DriverPicker}}
+
+    <p class="field-label">Other occupants</p>
+    {{template "person_picker" .OccupantPicker}}
+
+    <p><label>Deadline (minutes; required for a controlled destination — otherwise no alert
+      promise exists for the trip and nothing signals that, C7 architecture review. An
+      uncontrolled destination REFUSES a deadline: nobody there can record the arrival that
+      would close it, so a timer could only ever raise a false alarm):
+      <input id="deadline-input" name="deadline_minutes" inputmode="numeric" pattern="[0-9]*"></label></p>
+    {{/* ---- where it is going. D-4: THERE IS NO DESTINATION-LESS BUTTON.
+
+         This row used to end with "Local check-out only (no destination)",
+         which authored a trip with no destination, no deadline and no
+         arrival — BYTE-IDENTICAL to a check-in that crashed between its two
+         events. domain.IncompleteCheckIns selects exactly that shape, so
+         every press put a departed crew on /gate under "Incomplete
+         check-ins — needs attention" behind a Resume button that would
+         check them back onto this muster in one click, and made the printed
+         muster read MAY BE INCOMPLETE.
+
+         D-4 (JAMES-DECISIONS.md) removes the path rather than teaching the
+         system to tell the two apart: Arctic North Slope, winter, private
+         property — no privately owned vehicles, no pedestrians. Every
+         person's presence here is bounded by a vehicle trip in and a
+         vehicle trip out, so a departure always has a destination to name.
+
+         Deleting the button is not the guard; domain.Dispatch refuses a
+         destination-less trip outright, because a raw POST never reads
+         markup. This comment exists so the button is not "restored" as an
+         obvious convenience. */}}
+    <p>One button per configured destination — every button checks all occupants out of {{sitelabel .SiteID}}:</p>
+    <p class="button-row">
+      {{$prefill := .DispatchPrefill}}
+      {{range .DispatchDestinations}}{{if .Controlled}}
+      <button type="submit" name="destination_id" value="{{.ID}}"
+        onclick="var i=document.getElementById('deadline-input');i.required=true;{{with index $prefill .ID}}if(!i.value)i.value='{{.}}';{{end}}">
+        Dispatch to {{.DisplayName}} — deadline timer runs{{with index $prefill .ID}} ({{.}} min){{end}}</button>
+      {{else}}
+      <button type="submit" name="destination_id" value="{{.ID}}"
+        onclick="document.getElementById('deadline-input').required = false">
+        Record run to {{.DisplayName}} — no gate there, no timer</button>
+      {{end}}{{else}}
+      {{/* ⟦James, 2026-10-03⟧ the working-on-the-road button renders even at a
+           post with no destinations IF its config offers the category (the
+           "no destinations" notice below then says no TRIP can leave, which
+           stays true). The two `{{else}}` arms are nested on purpose so the
+           notice keeps its exact wording and condition. */}}
+      {{if not $.RoadWorkChoice.Enabled}}
+      <span class="notice notice-warn"><strong>No destinations are configured at this post</strong>, so no
+        departure can be recorded here. Every departure names where the vehicle went; a trip with no
+        destination is indistinguishable from a check-in that crashed half-way and would fire the
+        muster's incompleteness warning on every departure. Adding a destination to this site's config
+        is what turns these buttons on.</span>
+      {{end}}
+      {{end}}
+      {{/* ⟦James, 2026-10-03⟧ WORKING ON THE ROAD — equipment going out onto
+           the road itself. Same destination_id field as the buttons above
+           (applyDispatchDestination resolves it); the deadline is this
+           post's configured limit, never typed, so the script clears the
+           box — with JS off a typed number that differs is refused with a
+           sentence saying so. Rendered only where config offers it. */}}
+      {{if .RoadWorkChoice.Enabled}}
+      <button type="submit" name="destination_id" value="{{.RoadWorkChoice.Value}}" data-road-work-dispatch
+        onclick="var i=document.getElementById('deadline-input');i.required=false;i.value='';">
+        {{.RoadWorkChoice.Label}} — no destination; overdue after {{.RoadWorkChoice.Limit}}</button>
+      {{end}}
+    </p>
+    {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+  </fieldset>
+</form>
+
+<h2>A vehicle has arrived at {{sitelabel .SiteID}}</h2>
+<p><small class="note">For a vehicle this site has not been told about (the vehicle outran the
+sync, or the link is down). If it matches exactly one open expectation it will be correlated;
+more than one and it goes to the review lane — the system never guesses.</small></p>
+<form method="post" action="/trips/arrive-unsolicited" data-confirm-picker="arrival-picker" data-confirm-verb="check in at this site">
+  <fieldset>
+    <legend>vehicle arriving</legend>
+    {{/* ⟦SchemaVersion 14, R-18, 2026-09-13⟧ `required` REMOVED — was:
+         `<input name="vehicle" required>`. This is the unsolicited-arrival
+         door, the one R-17's own build never measured ("there are no doors
+         only vehicles" always covered it, R-18 closes the gap): it gets
+         the SAME "Vehicle unknown" escape the gate and console doors do.
+         Ticking the box below ignores this field and records the arrival
+         with no vehicle identified at all (trip_arrival.vehicle_unidentified),
+         enforced by RecordUnsolicitedArrivalOriented on every authoring
+         path including a raw POST — this attribute was never the real
+         guard. */}}
+    <p><label>Vehicle id (as painted on the door): <input name="vehicle"></label></p>
+    <p class="field">
+      <label><input type="checkbox" id="vehicle-unidentified-unsolicited" name="vehicle_unidentified" value="1">
+      Vehicle unknown — this post cannot say what it was (a text-message report with no truck number, a
+      bus or van with no unit number)</label>
+      <small class="note">Still records the arrival and still needs at least one occupant below.
+      Recorded as an explicit, reviewable "Vehicle unknown" — never left blank. Prefer typing the real
+      number above when you have it; use this only when you genuinely do not. An arrival recorded this
+      way cannot be correlated to an open expectation (the correlation key is the vehicle) — it always
+      lands here as a plain visit, never the review lane, and where it came from is still recorded.</small>
+    </p>
+    <p><label>Came from:
+      <select name="origin_site">
+        {{range .Destinations}}<option value="{{.}}">{{sitelabel .}}</option>{{end}}
+      </select></label></p>
+    <p class="field-label">People aboard <small class="note">The whole roster ({{.RosterCount}}),
+      because anyone can arrive on any vehicle and a person missing from this list is a person
+      missing from the muster. Search to narrow it — searching hides rows, it never unticks
+      anyone.</small></p>
+    {{template "person_picker" .ArrivalPicker}}
+    {{template "time_control" (dict "TimeSource" "" "OccurredAtWall" "")}}
+    <p><button type="submit" class="button-primary">Record arrival — creates one visit per person</button></p>
+  </fieldset>
+</form>
+
+<nav class="pagenav"><a href="/trips/detail">all trips, visits &amp; pads</a> · <a href="/gate">gate</a> ·
+  <a href="/muster">muster</a> · <a href="/muster/print">print muster</a> · <a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/status">status page</a></nav>
+{{template "picker_script" .}}
+{{template "page_close" .}}

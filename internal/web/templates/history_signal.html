@@ -1,0 +1,39 @@
+{{template "page_open" (dict
+  "Title" (printf "Lost-signal history — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* history_signal.html — GET /history/signal (history.go,
+     signal_history.go). The serving post's own record. */}}
+<h1>Lost-signal history</h1>
+{{template "history_head" .}}
+<p>Which sites {{.Cfg.PostName}} lost contact with, when, and for how long. Recorded from the day this record
+was switched on; outages before that are not known here and none are guessed.</p>
+{{template "history_filter" (dict "Page" . "Action" "/history/signal" "Routes" nil "DateHelp" "An outage is listed when any part of it falls in these days.")}}
+{{if .NotRecorded}}
+<div class="notice notice-warn"><strong>NOT RECORDED</strong> — this post keeps no lost-signal record yet: the
+recorder has not run here. The top bar still shows LOST SIGNAL as it happens.</div>
+{{else if .Err}}
+<div class="notice notice-critical"><strong>REPORT UNAVAILABLE</strong> — {{.Err}}. Nothing is shown, so nothing can be
+mistaken for a complete report.</div>
+{{else if not .Filter.Problems}}
+<h2 id="results">{{len .Rows}} {{if eq (len .Rows) 1}}outage{{else}}outages{{end}}{{if .OpenNow}} <small class="note">— {{.OpenNow}} still lost now</small>{{end}}</h2>
+{{if .Rows}}
+{{template "history_csv" (dict "Href" .CSVHref "Name" "signal" "Title" "lost-signal history" "N" (len .Rows))}}
+{{template "signal_table" .Rows}}
+{{else}}<p class="note">No lost signal recorded in this range.</p>{{end}}
+{{end}}
+<p class="note">{{.Rule}} An outage runs from the last completed sync before it to the first one after it.</p>
+{{template "history_foot" .}}
+{{template "page_close" .}}
+
+{{define "signal_table"}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Lost-signal outages (scrolls sideways)">
+<table class="plain history-table" data-history="signal">
+  <thead><tr><th scope="col">Site</th><th scope="col">Lost from</th><th scope="col">Back</th><th scope="col">For</th></tr></thead>
+  <tbody>{{range .}}<tr{{if .Open}} class="history-open"{{end}}><th scope="row">{{.Site}}</th>
+    <td>{{.From}}{{if .NeverHeard}} <small class="note">(not heard since this post started)</small>{{end}}</td>
+    <td>{{if .Open}}<strong>{{.Ended}}</strong>{{else}}{{.Ended}}{{end}}{{if .Restart}} <small class="note">(this post restarted during it)</small>{{end}}</td>
+    <td>{{.Duration}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+{{end}}

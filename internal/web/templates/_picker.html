@@ -1,0 +1,339 @@
+{{/* _picker — U2's person picker (view model: picker.go).
+
+     This partial is the ONLY multi-person control in the app. It replaced
+     every `<select multiple size="5">`, each of which rendered the whole
+     season roster unsorted into a five-row window where a stray plain click
+     silently wiped the selection (measured, design/bulk-movement-v1.md).
+
+     Three things this markup guarantees on its own, with no script running:
+       1. It is a plain checkbox/radio list inside the page's own <form>, so
+          it submits under the SAME field name as the control it replaced
+          and works with JavaScript off.
+       2. Nothing is pre-ticked unless the caller says so, and the caller
+          states in words which direction a missed tick fails in.
+       3. Every select-all is bound to ONE company or ONE trade and says
+          so, with its count, in its own label. There is no unscoped
+          select-all anywhere.
+
+     The search box and the select-alls carry `hidden` in the served markup
+     and are un-hidden by the script below. With JS off they are invisible
+     rather than inert-but-clickable — a control that looks live and does
+     nothing is worse than no control. */}}
+
+{{define "person_picker"}}
+<div class="picker" id="{{.IDPrefix}}" data-picker-mode="{{.Mode}}" data-picker-field="{{.FieldName}}">
+  <div class="picker-head">
+    <span class="picker-scope">{{.Total}} {{if eq .Mode "radio"}}to choose from{{else}}selectable{{end}}</span>
+    <div class="picker-search" hidden>
+      <label>Search <input type="search" class="picker-filter" autocomplete="off" placeholder="type part of a name"></label>
+    </div>
+    <span class="picker-tally" role="status" hidden>0 selected</span>
+  </div>
+  <p class="picker-default"><strong>Unticked means:</strong> {{.SafeDefault}}</p>
+  {{if .Total}}{{/* .Total, not .Sections: a section list holding only empty
+       sections must still render the "nobody here" sentence, never a blank box. */}}
+  {{$field := .FieldName}}{{$mode := .Mode}}{{$req := .Required}}
+  {{range $sec := .Sections}}
+  {{if $sec.Collapsed}}<details class="picker-section"><summary class="picker-section-head">{{$sec.Label}} <span class="picker-group-count">{{$sec.Count}}</span></summary>
+  {{else}}<div class="picker-section">{{if $sec.Label}}<p class="picker-section-head">{{$sec.Label}} <span class="picker-group-count">{{$sec.Count}}</span></p>{{end}}
+  {{end}}
+  {{with $sec.Note}}<p class="picker-section-note">{{.}}</p>{{end}}
+  <div class="picker-groups">
+    {{range $g := $sec.Groups}}
+    <div class="picker-group">
+      <div class="picker-group-head">
+        <span class="picker-group-name">{{$g.Label}}</span>
+        <span class="picker-group-count">{{$g.Count}}</span>
+        {{if eq $mode "checkbox"}}{{if gt $g.Count 1}}
+        {{/* SCOPED select-all: this company only, count on its face. Not
+             offered for a group of one — "all 1 in X" is a second control
+             for the tick-box directly beneath it. */}}
+        <label class="picker-all" hidden><input type="checkbox" data-picker-all="group"> all {{$g.Count}} in {{$g.Label}}</label>
+        {{end}}{{end}}
+      </div>
+      {{range $sub := $g.Subs}}
+      <div class="picker-sub">
+        <div class="picker-sub-head">
+          <span class="picker-sub-name">{{$sub.Label}}</span>
+          {{if eq $mode "checkbox"}}{{if and (gt (len $g.Subs) 1) (gt (len $sub.Rows) 1)}}
+          {{/* SCOPED select-all: this trade only. Offered only when the
+               company has more than one trade (otherwise it repeats the
+               company's own control) and this trade has more than one
+               person (otherwise it repeats the row beneath it). */}}
+          <label class="picker-all" hidden><input type="checkbox" data-picker-all="sub"> all {{len $sub.Rows}} in {{$sub.Label}}</label>
+          {{end}}{{end}}
+        </div>
+        {{/* Two boxes, one name — said BEFORE the rows, once per shared
+             name in this subgroup, and only when there is one. The lead
+             states the count; the sentence after it is this picker's own
+             (personPicker.SameName), because the safe error runs the
+             opposite way for an action that adds people and one that
+             removes them. */}}
+        {{range $sub.SameName}}<p class="picker-samename"><strong>{{.Count}} records here carry the name “{{.Name}}”.</strong> {{$.SameName}}</p>
+        {{end}}
+        {{/* One line per person, and NOTHING but that line: this list is
+             1,279 rows long at season scale, so every byte of row markup —
+             an indent, a wrapper <span>, a data- attribute — is multiplied
+             by 1,279. The name is the label's own text; only a row whose
+             name is shared in this subgroup carries what tells it apart
+             after it (.Ref, worded in Go — today "person id …f5e3"), as
+             plain text, so the row stays one line and the confirm and the
+             search box see it too.
+
+             THE ONE EXCEPTION is the on-site roster's sign-in date and
+             time (.When, gate_signin.go, `hh:nn mm/dd`): a bare trailing
+             span, rendered ONLY when the row carries one — the on-site
+             rows, headcount-scale, never the season roster — so the
+             1,279-row lists above pay nothing. It sits AFTER the name, so
+             the name stays the label's own leading text for the sort, the
+             confirm and the search box (which also sees the date: typing
+             "09/10" finds that day's arrivals). No attributes on it — the
+             date is shown plainly, per James. picker_test.go's pickerRowRe
+             admits exactly this span and nothing else. */}}
+        {{range $row := $sub.Rows}}<label class="picker-row"><input type="{{$mode}}" name="{{$field}}" value="{{$row.Value}}"{{if $req}} required{{end}}> {{$row.Name}}{{with $row.Ref}} ({{with $row.Origin}}added at {{sitelabel .}}, {{end}}{{.}}){{end}}{{with $row.When}}<span class="picker-when">{{.}}</span>{{end}}</label>
+{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  {{if $sec.Collapsed}}</details>{{else}}</div>{{end}}
+  {{end}}
+  <p class="picker-none" hidden><em>No name here matches that search. Clear the search box — anyone you already ticked is still ticked.</em></p>
+  {{else}}
+  <p class="picker-empty"><em>{{.Empty}}</em></p>
+  {{end}}
+</div>
+{{end}}
+
+{{define "picker_script"}}
+{{/* The id is a STRUCTURAL HOOK, not decoration (V-07 arm 1): a page that
+     renders pickers and forgets this template loses every confirm on it
+     with JS ON, and loses nothing with JS off — so no functional test
+     fails, no error is logged, and the operator gets an unreviewed submit.
+     Asserted by TestEveryPageWithAPickerServesTheScriptThatReviewsIt. */}}
+<script id="picker-script">
+/* Person-picker progressive enhancement (U2). Everything here is optional:
+   with the script absent the picker is a working checkbox list that posts
+   to the same action under the same field names.
+
+   Two rules this code must never break:
+     - FILTERING HIDES, IT NEVER UNTICKS. A hidden checked box is still
+       submitted by the browser, so narrowing the search can never quietly
+       shrink a selection. (This is the whole reason the old multi-select
+       was dangerous: there, a stray plain click DID discard everything.)
+     - EVERY SELECT-ALL IS SCOPED. Each one only ever touches the rows
+       inside its own company or trade container. There is no code path
+       here that can tick the whole list. */
+(function () {
+  var pickers = document.querySelectorAll('.picker');
+  if (!pickers.length) return;
+
+  function boxesIn(el) { return el.querySelectorAll('input[type=checkbox][name], input[type=radio][name]'); }
+
+  pickers.forEach(function (picker) {
+    var mode = picker.getAttribute('data-picker-mode');
+    var tally = picker.querySelector('.picker-tally');
+    var none = picker.querySelector('.picker-none');
+    var search = picker.querySelector('.picker-search');
+    var filter = picker.querySelector('.picker-filter');
+
+    /* [data-picker-one-only] ⟦gate-checkin-spec, 2026-09-13⟧: a button that
+       works on EXACTLY one ticked row (the gate roster's "Edit person") —
+       disabled otherwise, with a short reason in the sibling
+       [data-picker-one-only-hint], so a scriptless browser's own server-side
+       refusal (which still fires either way) is never the FIRST thing an
+       officer who could have been told in advance discovers. Generic and
+       opt-in: a picker with neither attribute present pays nothing extra,
+       and /trips' own pickers are unaffected. */
+    function refreshOneOnly(n) {
+      var form = picker.closest('form');
+      if (!form) return;
+      form.querySelectorAll('[data-picker-one-only]').forEach(function (btn) {
+        btn.disabled = n !== 1;
+      });
+      var hintEl = form.querySelector('[data-picker-one-only-hint]');
+      if (hintEl) {
+        hintEl.textContent = n === 0 ? 'Tick one person first.' : (n > 1 ? 'Untick the rest — exactly one at a time.' : '');
+      }
+    }
+    /* [data-picker-nonzero-only] ⟦R-27 revision 2, 2026-09-16⟧ the same
+       opt-in shape as data-picker-one-only above, for a button that works
+       on ONE OR MANY ticked rows (the individual page's "Check out
+       selected") rather than exactly one — disabled at zero, with no hint
+       text: a disabled button next to an empty list is its own reason,
+       and the server's own scriptless refusal ("Nothing was ticked...")
+       still fires either way for JS-off. Generic and opt-in: a button
+       carrying neither attribute pays nothing extra. */
+    function refreshNonzeroOnly(n) {
+      var form = picker.closest('form');
+      if (!form) return;
+      form.querySelectorAll('[data-picker-nonzero-only]').forEach(function (btn) {
+        btn.disabled = n === 0;
+      });
+    }
+    function refreshTally() {
+      var n = 0;
+      boxesIn(picker).forEach(function (b) { if (b.checked) n++; });
+      refreshOneOnly(n);
+      refreshNonzeroOnly(n);
+      if (!tally) return;
+      tally.textContent = n + ' selected';
+      tally.hidden = false;
+    }
+
+    // Reveal the enhancements only now that they actually work.
+    if (search) search.hidden = false;
+    picker.querySelectorAll('.picker-all').forEach(function (l) { l.hidden = false; });
+
+    picker.querySelectorAll('[data-picker-all]').forEach(function (all) {
+      var scope = all.closest(all.getAttribute('data-picker-all') === 'sub' ? '.picker-sub' : '.picker-group');
+      all.addEventListener('change', function () {
+        // Scoped to this container's own rows and to the rows currently
+        // visible in it — a select-all never reaches past its own heading,
+        // and never silently ticks somebody the operator has filtered out
+        // of sight.
+        scope.querySelectorAll('.picker-row').forEach(function (row) {
+          if (row.hidden) return;
+          var box = row.querySelector('input[type=checkbox]');
+          if (box) box.checked = all.checked;
+        });
+        refreshTally();
+      });
+    });
+
+    picker.addEventListener('change', function (e) {
+      if (e.target && e.target.name) refreshTally();
+    });
+
+    if (filter) {
+      filter.addEventListener('input', function () {
+        var f = filter.value.trim().toLowerCase();
+        var shown = 0;
+        picker.querySelectorAll('.picker-row').forEach(function (row) {
+          var hit = f === '' || row.textContent.toLowerCase().indexOf(f) !== -1;
+          row.hidden = !hit;               /* HIDES ONLY — never row.querySelector('input').checked = false */
+          if (hit) shown++;
+        });
+        picker.querySelectorAll('.picker-sub, .picker-group, .picker-section').forEach(function (box) {
+          var any = false;
+          box.querySelectorAll('.picker-row').forEach(function (r) { if (!r.hidden) any = true; });
+          box.hidden = !any;
+          /* A match inside the collapsed "everyone else" section opens it:
+             a hit the operator cannot see is a hit that did not happen. */
+          if (any && f !== '' && box.tagName === 'DETAILS') box.open = true;
+        });
+        if (none) none.hidden = shown !== 0;
+      });
+    }
+
+    if (mode === 'checkbox') refreshTally();
+  });
+
+  /* The consolidated confirm, the same precedent gate.html's off-roster
+     add-on-demand set: before anything is POSTed, name every person the
+     button is about to affect and say what will happen to them. Cancel
+     aborts the submit entirely — nothing is sent, nothing is authored.
+
+     V-04, and both halves are load-bearing:
+
+     1. data-confirm-picker is a SPACE-SEPARATED LIST of picker ids, and
+        this collector iterates it. A submit that moves people through more
+        than one picker — the dispatch form is driver-picker AND
+        occupant-picker — used to name only the first, so the confirm
+        understated the muster effect by one on EVERY dispatch. The driver
+        is always an occupant, so "3 person(s)" always meant four leaving.
+     2. It collects RADIOS as well as checkboxes. The driver control is a
+        radio group in a sibling <div id="driver-picker">, which made it
+        structurally invisible to a checkbox-only collector: a mis-clicked
+        driver radio got no review step at all, and it closes the visit of
+        a person who is still standing on site.
+
+     Widening the row selector alone provably does not work — the picker is
+     resolved by getElementById, so a picker the form does not NAME is
+     never looked at, whatever the row selector says. */
+  document.querySelectorAll('form[data-confirm-picker]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      /* SUBMITTER-AWARE OPT-OUT (gate-restack, 2026-09-11). A form can now
+         carry a SECOND button with a different meaning than the one
+         data-confirm-verb describes — gate.html's roster form gained
+         "Depart together", which stages people onto another form and
+         removes nobody, beside the pre-existing "Remove the ticked
+         people" commit this confirm was written for. e.submitter is the
+         actual <button> activated (well-supported cross-browser); a
+         button carrying data-no-confirm skips the dialog entirely rather
+         than showing the WRONG verb. Every existing button with neither
+         attribute is unaffected — this is additive. */
+      if (e.submitter && e.submitter.hasAttribute('data-no-confirm')) return;
+      var ids = (form.getAttribute('data-confirm-picker') || '').split(/\s+/);
+      var verb = form.getAttribute('data-confirm-verb') || 'record';
+      var names = [];
+      var seen = {};
+      var found = 0;
+      ids.forEach(function (id) {
+        if (!id) return;
+        var picker = document.getElementById(id);
+        if (!picker) return;
+        found++;
+        picker.querySelectorAll('.picker-row').forEach(function (row) {
+          var box = row.querySelector('input[type=checkbox], input[type=radio]');
+          if (!box || !box.checked) return;
+          /* The driver is always an occupant, so the same person can be
+             ticked in two of this form's pickers. Name them once — the
+             COUNT is what the operator checks against the people in front
+             of them, and counting somebody twice is as wrong as missing
+             them. Keyed by value, never by the row's text, so two people
+             who share a display name still count as two. */
+          /* ⟦T-023, 2026-10-03⟧ keyed by VALUE alone — the driver radio
+             (driver_person_id) and the occupant box (occupant_person_ids)
+             carry the same person id under different names, so the old
+             name+value key named the driver twice ("2 person(s)") whenever
+             they were ticked in both pickers. */
+          var key = box.value;
+          if (seen[key]) return;
+          seen[key] = true;
+          /* James, 2026-10-04 (L02/L03/L10 LOW): row.textContent ran the cells
+             together ("UlworthOwenPolar Ridge Contracting11:5110/03"). Each
+             text node is kept apart, joined with " · ". */
+          var parts = [];
+          var walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, null);
+          while (walker.nextNode()) {
+            var t = walker.currentNode.nodeValue.replace(/\s+/g, ' ').trim();
+            if (t) parts.push(t);
+          }
+          names.push(parts.join(' · '));
+        });
+      });
+      if (!found) return;
+      if (!names.length) return; // the server refuses an empty selection, and says why
+      if (!confirm('About to ' + verb + ' — ' + names.length + ' person(s):\n\n' + names.join('\n') + '\n\nIs that everyone, and only them?')) {
+        e.preventDefault();
+      }
+    });
+  });
+
+  /* The arrival forms are the OTHER direction: their checkboxes are
+     EXCEPTIONS ("this person stayed behind"), so unticked means checked in.
+     The confirm therefore fires only when at least one exception is ticked
+     — the common case (the whole crew came back) keeps its zero extra
+     clicks — and it names BOTH lists, because the dangerous mistake on an
+     arrival is leaving somebody off the muster, not putting somebody on it. */
+  document.querySelectorAll('form[data-confirm-stayed]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      var inbound = [], stayed = [];
+      form.querySelectorAll('label.stayed').forEach(function (row) {
+        var box = row.querySelector('input[type=checkbox]');
+        var name = row.querySelector('[data-stayed-name]');
+        if (!box || !name) return;
+        (box.checked ? stayed : inbound).push(name.textContent.trim());
+      });
+      if (!stayed.length) return; // nothing excluded — the manifest is arriving whole
+      var msg = 'Checking in ' + inbound.length + ':\n' + (inbound.join('\n') || '(nobody)') +
+        '\n\nNOT checking in ' + stayed.length + ' — they will not be on the muster:\n' + stayed.join('\n') +
+        '\n\nIs that right?';
+      if (!confirm(msg)) e.preventDefault();
+    });
+  });
+})();
+</script>
+{{end}}

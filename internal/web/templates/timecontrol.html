@@ -1,0 +1,61 @@
+{{/* timecontrol.html — TP §4.5's time capture control and TP §4.6's
+     warn-accept notices (W2).
+
+     THE CONTROL ("time_control"). Every form whose submission authors a
+     takes-input event (TP §4.8 rows 1–8) embeds this partial. It renders
+     COLLAPSED by default — the record is normally stamped with the current
+     time and the officer does nothing — with an explicit "change time"
+     affordance that opens the datetime-local input for after-the-fact
+     entry. The posted signal is the time_source radio group: "default"
+     (checked as served — an untouched JS-off submission posts exactly
+     that) or "entered" (the officer opened the control and chose it). The
+     server NEVER derives the signal by comparing values, and on the
+     default path it ignores whatever the occurred_at input echoed — the
+     render instant is never stored (store rule W stamps from its own
+     clock reading). <details>/<summary> works with scripting off, so the
+     no-JS path is the same markup, not a fallback.
+
+     Data: a dict with "TimeSource" and "OccurredAtWall" — the posted
+     control state a refusal or accumulate round trip must re-render
+     intact (TP §4.6 rule 6: a refusal must not cost the operator the
+     typed time). Empty strings render the untouched default.
+
+     THE NOTICES ("time_warnings"). TP §4.6's warn-accept warnings, carried
+     across the accept path's redirect as query codes and rendered by the
+     target page — the page the operator actually sees next. The
+     time-warning class token is the recognisable marker; the value was
+     stored exactly as typed, and the copy says so. */}}
+
+{{define "time_control"}}
+{{/* Deliberately NOT a <details> element: two of this partial's host
+     forms live INSIDE a <details> row (the gate inbound board), and
+     nesting a second one would end the host's block at this control's
+     close tag for every "first </details>" reader — the gate's own
+     no-script tests extract rows exactly that way. The collapse here is
+     the radio group's: the datetime-local input is inert until the
+     "change time" choice is made, and the untouched form posts the
+     default signal. */}}
+{{$entered := eq .TimeSource "entered"}}
+<fieldset class="time-control">
+  {{/* ⟦FIX8, James, 2026-10-05⟧ "Legend", when the host passes one, names
+       WHICH time this is ("Time in for everyone in this vehicle", "Time
+       out for everyone ticked") — the control is otherwise unchanged. */}}
+  <legend>{{with .Legend}}<strong class="time-legend">{{.}}</strong> — recorded at the current time;
+    <span class="time-affordance">change time</span> only if it was not now.{{else}}When did this happen? Recorded at the current time —
+    <span class="time-affordance">change time</span> only if this is being entered after the fact.{{end}}</legend>
+  <label><input type="radio" name="time_source" value="default"{{if not $entered}} checked{{end}}>
+    Use the current time (it happened just now)</label><br>
+  <label><input type="radio" name="time_source" value="entered"{{if $entered}} checked{{end}}>
+    It actually happened at:
+    <input type="datetime-local" name="occurred_at" value="{{.OccurredAtWall}}"></label>
+  <small class="note">An entered time is recorded as this officer's statement of when it happened,
+    exactly as typed — never adjusted. Leave the current time selected unless the event is being
+    entered after the fact.</small>
+</fieldset>
+{{end}}
+
+{{define "time_warnings"}}
+{{range .}}
+<div class="notice notice-warn time-warning"><strong>CHECK THE RECORDED TIME</strong> — {{.}}</div>
+{{end}}
+{{end}}

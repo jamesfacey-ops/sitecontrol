@@ -1,0 +1,31 @@
+{{template "page_open" (dict
+  "Title" (printf "%s — %s" .Title .Cfg.DisplayName)
+  "Main" "an-page"
+  "Data" .)}}
+{{/* reports.html — GET /reports/{name} (reports.go, FIX16 stream B). The
+     `sitectl -report` CSV as a table, with its download. READ-ONLY: no
+     <form>, no <button>; the table and the .csv are the same rows. */}}
+<h1>{{.Title}}</h1>
+{{if .Err}}
+<div class="notice notice-critical"><strong>REPORT UNAVAILABLE</strong> — {{.Err}}. Nothing is shown, so nothing can be
+mistaken for a complete report.</div>
+{{else}}
+<p>{{.Blurb}}</p>
+<p class="csv-link"><a href="{{.CSVHref}}" data-csv="{{.Name}}">Download CSV<span class="sr-only"> of the {{.Title}}</span></a>
+  <small class="note">({{len .Rows}} {{if eq (len .Rows) 1}}row{{else}}rows{{end}}, the rows below)</small></p>
+{{with .Summary}}<ul class="note report-summary">{{range .}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{if .Rows}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="{{.Title}} (scrolls sideways)">
+<table class="search-results" data-report="{{.Name}}">
+  <thead><tr>{{range .Header}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+  <tbody>
+  {{range .Rows}}<tr>{{range .}}<td>{{.}}</td>{{end}}</tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}<p class="note">No rows: this post holds no record this report counts.</p>{{end}}
+{{end}}
+
+<nav class="pagenav">{{range .Others}}<a href="{{.Href}}">{{.Title}}</a> · {{end}}<a href="/search">search records</a> · <a href="/analytics">dispatch analytics</a> · <a href="/history/overdue">overdue history</a> · <a href="/history/signouts">missed sign-outs</a> · <a href="/history/signal">lost-signal history</a></nav>
+{{template "page_close" .}}

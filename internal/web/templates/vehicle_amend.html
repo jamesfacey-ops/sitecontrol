@@ -1,0 +1,168 @@
+{{template "page_open" (dict
+  "Title" (printf "Vehicles — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* vehicle_amend.html — the officer-facing VEHICLE surface (W7, item 9).
+     One screen: add a truck, correct its number or role, join two duplicate
+     records (same_as), un-join (clear = same_as).
+
+     GATING IS DR-W7-17 and its authority is stated at vehicle_amend.go's
+     head: D-63 for WHO may use it, D-12 for NOT behind a developer switch,
+     and the requireLogin MECHANISM as W7's lock's own design ruling. It
+     cites neither D-51 nor D-46, and that is deliberate — neither names
+     vehicle.
+
+     THE AMENDABLE SET IS {number, role, same_as} AND NOTHING ELSE. There is
+     no retired control here and there never will be (DR-W7-8), and no
+     recorded_by control either — attribution on an amendment is structural
+     (DR-W7-7).
+
+     THE ADD FORM OFFERS A ROLE BESIDE THE NUMBER, and that pairing is the
+     whole of item 8 on this screen. D-11: a truck with no number must be a
+     distinct recorded state, never a stand-in typed into the number field.
+     So the number is NOT required, the role is offered in the same breath,
+     and a record naming neither is refused by the domain — which is also
+     the one place the ~40-value placeholder list is checked, because this
+     is the one place a number is typed.
+
+     THERE ARE THREE ERROR NOTICES, NOT TWO, because the edge has three
+     error classes and the officer's next action differs in each: a
+     fact-domain REFUSAL means the change asked for is not allowed (fix the
+     change); an INPUT-VALIDITY refusal means the record named is not here
+     (fix the id); an INTERNAL fault means this post failed (raise it).
+     Do not collapse the first two into the third's banner. An earlier build
+     on the sibling surface routed a mistyped id to the internal arm and
+     told the officer, at HTTP 500, to radio a post that was working
+     perfectly — on a surface where a typo is the likeliest mistake there
+     is. Each of the first two carries the DOMAIN'S OWN authored sentence;
+     the internal one carries none, because a real fault's text is exactly
+     what must not reach the page.
+
+     REFUSALS PRESERVE THE OFFICER'S TYPING as value="…" on the controls.
+
+     NO style block (the shared partial owns styling), no script. */}}
+<h1>Vehicles <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Outcome}}
+  {{if .Outcome.NotThisKind}}
+  {{/* ⟦D22, fix2-fj 2026-10-04⟧ a key naming an event of ANOTHER kind
+       here: nothing to confirm (the T-199 / R-080 arm). Never the
+       green "Recorded" of someone else's record. */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Outcome.Key}}</code>, which is not a vehicle change recorded at this post. Opening it recorded nothing. To change a vehicle, use the form below.</div>
+  {{else if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this change</div>
+  {{else}}
+    {{range .Outcome.Rows}}
+      {{if .Effective}}
+        {{if .SupersededPost}}
+          {{/* TWO ARMS, and the split is a TRUTH split, not a style one. The
+               radio instruction is justified by the winner being the only
+               one who can radio about it — true of a PEER post, false of
+               your own. A same-post displacement is overwhelmingly an
+               officer correcting their own typo seconds earlier, and there
+               is nobody to call. Keep each arm in ONE unbroken text run. */}}
+          {{if eq .SupersededPost "this post"}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} change now stands: it takes the place of an earlier change made at {{.SupersededPost}}.</div>
+          {{else}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} change now stands: it takes the place of an earlier change made at {{.SupersededPost}}. Whoever made that one is not being told by this screen — radio it through.</div>
+          {{end}}
+        {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Fact}}.</div>
+        {{end}}
+      {{else if .UnMerge}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your un-join was recorded but is <strong>not in effect</strong>: a later join made at this post stands. The two records remain joined on every screen. That join was authored here, at this post — un-join it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your un-join was recorded but is <strong>not in effect</strong>: the join made at {{.WinnerPost}} stands. The two records remain joined on every screen. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{else}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your {{.Fact}} change was recorded but is <strong>superseded</strong> by a later change made at this post. Your value is kept in the record and will not display. The value that stands was authored here, at this post — change it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your {{.Fact}} change was recorded but is <strong>superseded</strong> by a change made at {{.WinnerPost}}. Your value is kept in the record and will not display. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{end}}
+    {{end}}
+  {{end}}
+{{end}}
+
+{{if .Created}}
+<div class="notice notice-ok" data-vehicle-created="{{.Created.VehicleID}}">Recorded. The vehicle record is <code>{{.Created.VehicleID}}</code>{{if .Created.Number}} — <code>{{.Created.Number}}</code>{{end}}{{if .Created.Role}} — {{.Created.Role}}{{end}}.</div>
+{{end}}
+
+{{if .Duplicates}}
+{{/* THE DUPLICATE PROMPT, AND IT IS A PROMPT. Nothing here joins anything:
+     the fold key is for search ranking and for this question, and for
+     nothing else — it never merges, never correlates, never reaches a
+     database column. The officer decides. */}}
+<div class="notice notice-warn">
+  <p>This post already holds a record whose number reads the same as the one you just added:</p>
+  <ul>
+    {{range .Duplicates}}<li><code>{{.VehicleID}}</code>{{if .Number}} — <code>{{.Number}}</code>{{end}}</li>{{end}}
+  </ul>
+  <p>If they are the same truck, join them below with <code>same_as</code>. If they are two different trucks that happen to read alike, leave them apart — nothing has been joined.</p>
+</div>
+{{end}}
+
+{{if .Error}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.Error}}. Nothing was recorded; your entry is still on the form below.</div>
+{{end}}
+
+{{if .InputError}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.InputError}}. Nothing was recorded; your entry is still on the form below. Check the vehicle id against the list — this post is working, and re-sending the same id will be refused again.</div>
+{{end}}
+
+{{if .InternalError}}
+<div class="notice notice-critical"><strong>NOT RECORDED</strong> — this post could not complete the change. Nothing was written to the record. The fault has been logged here; try again, and if it repeats, radio it through.</div>
+{{end}}
+
+<section class="card">
+  <h2>Add a vehicle</h2>
+  <form method="post" action="/vehicle/create">
+    <div class="field">
+      <label class="field-label" for="vehicle-create-number">Unit or plate number</label>
+      <input id="vehicle-create-number" name="number" value="{{.Number}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="vehicle-create-role">Role</label>
+      <input id="vehicle-create-role" name="role" value="{{.Role}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Add this vehicle</button>
+    </div>
+    <p class="note">A truck with no number on it is recorded by its ROLE — the vac truck, the water truck — and left with the number blank. Do not type a stand-in into the number field: a blank number is a fact this system records, and a stand-in is not.</p>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Correct or join a vehicle record</h2>
+  <form method="post" action="/vehicle/amend">
+    <div class="field">
+      <label class="field-label" for="vehicle-amend-vehicle-id">Vehicle id (the record being changed)</label>
+      <input id="vehicle-amend-vehicle-id" name="vehicle_id" value="{{.VehicleID}}" list="vehicle-amend-known" required>
+      <datalist id="vehicle-amend-known">
+        {{range .Vehicles}}<option value="{{.VehicleID}}">{{if .Number}}{{.Number}}{{end}}{{if .Role}} ({{.Role}}){{end}}</option>{{end}}
+      </datalist>
+    </div>
+    {{range .Fields}}
+    <div class="field">
+      <label class="field-label" for="vehicle-amend-{{.Key}}">{{.Label}}</label>
+      <input id="vehicle-amend-{{.Key}}" name="{{.Key}}" value="{{.Value}}">
+    </div>
+    {{end}}
+    <div class="field">
+      <label class="field-label" for="vehicle-amend-clear">Clear a field (un-sets it; clear <code>same_as</code> to un-join)</label>
+      <input id="vehicle-amend-clear" name="clear" value="{{.Clear}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Change this vehicle</button>
+    </div>
+    <p class="note">A field left blank changes nothing — to un-set one, name it in Clear. Changes append to the record; earlier values are kept, never erased. Correcting a number rewrites nothing that already happened: every past run keeps the number it went out with.</p>
+  </form>
+</section>
+
+{{if .HasPeer}}
+<p class="note">Where this post and {{.StandingOther}} correct the same thing, {{.StandingTaker}}'s correction takes precedence</p>
+{{end}}
+
+{{template "page_close" .}}

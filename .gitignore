@@ -1,0 +1,26 @@
+# Binaries — the build artifact is produced by deploy/build.ps1, never committed.
+# ANCHORED to the repo root with a leading slash, deliberately: the unanchored form
+# `sitectl` also matched the SOURCE DIRECTORY cmd/sitectl/, which silently kept
+# cmd/sitectl/main.go — the program's entire entry point — untracked from C1 until
+# 2026-08-19. A fresh clone had no main package and could not build. Do not remove
+# these leading slashes.
+*.exe
+/sitectl
+/sitectl-*
+bin/
+dist/
+
+# Databases — self-created at runtime, never committed
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local/secret config — a post's site.toml / config.toml holds its login password
+# and peer key: never commit one. Only the secret-free plan example is committed.
+site.toml
+config.toml
+*.local.toml
+.env
+passwords.txt
+IT-CHECKLIST.txt

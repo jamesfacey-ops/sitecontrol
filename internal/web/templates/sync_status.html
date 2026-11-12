@@ -1,0 +1,66 @@
+{{/* sync_status — C10 (§8.9): the sync-status UI. Renders the COMPLETE
+     per-stream table (nothing filtered — carry-forward rows 19/26) and a
+     per-peer verdict that merges contact age, transport error, stream
+     state, and anchor age into ONE sentence per peer, never separate
+     signals an operator could read as contradicting each other. A missing
+     engine (SyncSnapshot unset) renders an explicit refusal, never silence
+     and never a false "ok" — see web.go's buildSyncSection. Expects the
+     page's statusData value, which embeds .Sync (syncStatusView, see
+     syncstatus.go).
+
+     Each peer box carries data-health="ok"/"degraded". That attribute — not
+     the CSS class — is what the render tests assert on, because a class name
+     also occurs in the stylesheet and a stylesheet match is not a rendered
+     element (F19). data-health appears in NO selector anywhere. */}}
+{{define "sync_status"}}
+<div id="sync-status">
+<h2>Sync status</h2>
+{{if not .Sync.Available}}
+<div class="notice notice-fault"><strong>SYNC STATUS UNAVAILABLE</strong> — the replication engine is
+not wired into this page. This is NOT a report that sync is healthy — it is a report that this
+page cannot currently tell.</div>
+{{else}}
+{{if not .Sync.Peers}}
+<p><em>no peers configured</em></p>
+{{end}}
+{{/* James, 2026-10-04 (ruling R11, D26): a key fact leads the section, in
+     the chip's own words, so the post doing the writing is told its records
+     are not reaching the others (sc-test L12-Y31b). FIX3 F6: the second
+     sentence is KeyFaultAdvice, which claims "not reaching" only for peers
+     known not to receive, and blames the link, not the keys, for a one-way
+     cut. ⟦was fixed text: "Records made here are not reaching those posts
+     until the keys in the posts' config files agree."⟧ */}}
+{{if or .Sync.KeyRejectedCount .Sync.CannotReadCount}}
+<div class="notice notice-fault" data-sync-key-fault><strong>{{if .Sync.KeyRejectedCount}}PEERS REJECT THIS POST'S KEY{{else}}PEERS CANNOT READ THIS POST{{end}}</strong> — {{.Sync.Summary}}.
+{{.Sync.KeyFaultAdvice}}</div>
+{{end}}
+{{range .Sync.Peers}}
+<div class="peer {{if .Healthy}}peer-ok{{else}}peer-bad{{end}}" data-health="{{if .Healthy}}ok{{else}}degraded{{end}}">
+  <strong>last heard from {{sitelabel .SiteID}}:</strong> {{.Verdict}}
+  {{with .PokeTrouble}}<br><span data-poke-trouble>Note: {{.}}.</span>{{end}}
+  <br><span class="peer-offset">clock offset: — (reserved; production-deferred, gauge not built for
+  this demo — §8.9)</span>
+  <br><small>drains: {{.Drains}}{{if .LastError}} · last error: <code>{{.LastError}}</code>{{end}}</small>
+</div>
+{{end}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Sync status table 1 (scrolls sideways)">
+<table>
+<tr><th>site</th><th>epoch</th><th>state</th><th>watermark</th><th>head</th><th>detail</th></tr>
+{{range .Sync.AllStreams}}
+<tr>
+  <td><code>{{sitelabel .SiteID}}</code>{{if .Own}} <em>(own — local watermark, always current, §8.6)</em>{{end}}</td>
+  <td>{{.NodeEpoch}}</td>
+  <td class="{{if .OK}}state-ok{{else}}state-bad{{end}}">{{.Label}}</td>
+  <td class="mono">{{.Watermark}}</td>
+  <td class="mono">{{if .Unreported}}—{{else}}{{.Head}}{{end}}</td>
+  <td>{{.Detail}}</td>
+</tr>
+{{else}}
+<tr><td colspan="6"><em>no stream state observed yet</em></td></tr>
+{{end}}
+</table>
+</div>
+<p><small>applied: {{.Sync.Applied}} · duplicates: {{.Sync.Duplicates}}</small></p>
+{{end}}
+</div>
+{{end}}

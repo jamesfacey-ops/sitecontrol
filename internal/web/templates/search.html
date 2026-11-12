@@ -1,0 +1,253 @@
+{{template "page_open" (dict
+  "Title" (printf "Search records — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* search.html — GET /search (search.go). A plain GET form (works with
+     scripting off) over every post's replicated records, and three result
+     groups: people, visits, trips. Each group is announced by its heading
+     and count — no live region. On the dispatch host (.Dispatch) nothing
+     links into the operator console: post names link to the read-only
+     /analytics/site/{id} pages, and nothing else is a link. Phones are
+     shown in full: the page is login-only on every host (PII-1). */}}
+<h1>Search records</h1>
+<p class="note">Every post's records that have reached {{.Cfg.PostName}}. Fill in any boxes; a record has to match all of them.</p>
+
+<form class="search-form" method="get" action="/search" role="search" aria-label="Search records">
+  <p class="field search-q">
+    <label class="field-label" for="search-q">Search for</label>
+    <input type="search" id="search-q" name="q" value="{{.Form.Q}}" autocomplete="off"
+           aria-describedby="search-q-help">
+    <small class="note" id="search-q-help">Any name, company, trade, phone digits, truck number or post — every word must match.</small>
+  </p>
+  <fieldset class="search-filters">
+    <legend>Narrow it down</legend>
+    <div class="search-grid">
+      <p class="field"><label class="field-label" for="search-last">Last name</label>
+        <input type="text" id="search-last" name="last" value="{{.Form.Last}}" autocomplete="off"></p>
+      <p class="field"><label class="field-label" for="search-first">First name</label>
+        <input type="text" id="search-first" name="first" value="{{.Form.First}}" autocomplete="off"></p>
+      <p class="field"><label class="field-label" for="search-company">Company</label>
+        <input type="text" id="search-company" name="company" value="{{.Form.Company}}" autocomplete="off"></p>
+      <p class="field"><label class="field-label" for="search-phone">Phone number</label>
+        <input type="text" id="search-phone" name="phone" value="{{.Form.Phone}}" autocomplete="off" inputmode="tel"
+               aria-describedby="search-phone-help">
+        <small class="note" id="search-phone-help">Digits only count; part of a number works.</small></p>
+      <p class="field"><label class="field-label" for="search-truck">Truck number</label>
+        <input type="text" id="search-truck" name="truck" value="{{.Form.Truck}}" autocomplete="off"
+               aria-describedby="search-truck-help">
+        <small class="note" id="search-truck-help">Spaces, hyphens and capitals do not count.</small></p>
+      <p class="field"><label class="field-label" for="search-site">Site</label>
+        <select id="search-site" name="site" aria-describedby="search-site-help">
+          <option value="">All sites</option>
+          {{range .Sites}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        <small class="note" id="search-site-help">People on site there now or last seen there; visits there; trips from or to it.</small></p>
+    </div>
+    <div class="search-grid">
+      <p class="field"><label class="field-label" for="search-date-from">Date from</label>
+        <input type="date" id="search-date-from" name="date_from" value="{{.Form.DateFrom}}" placeholder="2026-10-05"></p>
+      <p class="field"><label class="field-label" for="search-time-from">Time from</label>
+        <input type="time" id="search-time-from" name="time_from" value="{{.Form.TimeFrom}}" placeholder="07:30"></p>
+      <p class="field"><label class="field-label" for="search-date-to">Date to</label>
+        <input type="date" id="search-date-to" name="date_to" value="{{.Form.DateTo}}" placeholder="2026-10-05"></p>
+      <p class="field"><label class="field-label" for="search-time-to">Time to</label>
+        <input type="time" id="search-time-to" name="time_to" value="{{.Form.TimeTo}}" placeholder="17:00"></p>
+    </div>
+    <small class="note" id="search-time-rules">A visit is found if the person was on site at any point in that
+    time, and a trip if it was on the road at any point (someone still on site, or a truck still out, counts up
+    to now). Times are as each post's clock recorded them. Times with no date apply to every day; a time with no
+    date beside it uses the other date.</small>
+  </fieldset>
+  <p class="actions"><button type="submit" class="button-primary">Search</button>
+    {{if .Searched}}<a class="button" href="/search">Clear</a>{{end}}</p>
+</form>
+
+{{if .Searched}}
+{{if .Problems}}
+<div class="notice notice-warn" id="search-problems"><strong>NOT SEARCHED</strong> — fix this and search again:
+  <ul>{{range .Problems}}<li>{{.}}</li>{{end}}</ul></div>
+{{else if .Err}}
+<div class="notice notice-critical"><strong>SEARCH FAILED</strong> — {{.Err}}. No results are shown, so none
+can be mistaken for a complete answer.</div>
+{{else}}
+<h2 id="results" tabindex="-1" data-search-counts="{{.PeopleN}} {{.VisitsN}} {{.TripsN}}">Results:
+  {{- with .Narrow}}{{if .ShowPeople}} {{$.PeopleN}} {{if eq $.PeopleN 1}}person{{else}}people{{end}}{{if or .ShowVisits .ShowTrips}},{{end}}{{end}}
+  {{- if .ShowVisits}} {{$.VisitsN}} {{if eq $.VisitsN 1}}visit{{else}}visits{{end}}{{if .ShowTrips}},{{end}}{{end}}
+  {{- if .ShowTrips}} {{$.TripsN}} {{if eq $.TripsN 1}}trip{{else}}trips{{end}}{{end}}{{end}}</h2>
+{{with .Window}}<p class="note">Date and time: {{.}}, by each post's own clock.</p>{{end}}
+{{if .Refine.Active}}
+<div class="search-chips" id="search-chips">
+  <p class="note">Narrowed from {{index .Narrow.BeforeN 0}} {{if eq (index .Narrow.BeforeN 0) 1}}person{{else}}people{{end}},
+    {{index .Narrow.BeforeN 1}} {{if eq (index .Narrow.BeforeN 1) 1}}visit{{else}}visits{{end}},
+    {{index .Narrow.BeforeN 2}} {{if eq (index .Narrow.BeforeN 2) 1}}trip{{else}}trips{{end}} by:</p>
+  <ul class="search-chip-list" aria-label="Filters on">
+    {{range .Narrow.Chips}}<li><a class="search-chip" href="{{.Href}}">{{.Label}} <span aria-hidden="true">×</span><span class="sr-only">— remove this filter</span></a></li>{{end}}
+  </ul>
+  <p><a href="{{.Narrow.ClearHref}}" id="search-clear-filters">Clear filters</a> <small class="note">(keeps the search)</small></p>
+</div>
+{{end}}
+
+<div class="search-layout">
+<details class="search-narrow" id="search-narrow"{{if .Refine.Active}} data-active="1"{{end}}>
+  <summary>Filter results{{with .Narrow.Chips}} ({{len .}} on){{end}}</summary>
+  <form method="get" action="/search#results" class="search-narrow-form" aria-label="Narrow results">
+    {{range .Narrow.Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    <p class="note">Narrows this search. Each number is how many results that choice leaves.</p>
+    <fieldset>
+      <legend>Site</legend>
+      {{range .Narrow.Sites}}<p class="search-opt"><input type="checkbox" name="in_site" id="{{.ID}}" value="{{.Value}}" data-n="{{.Count}}"{{if .Checked}} checked{{end}}>
+        <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{end}}
+    </fieldset>
+    <fieldset>
+      <legend>Result type</legend>
+      {{range .Narrow.Types}}<p class="search-opt"><input type="checkbox" name="in_type" id="{{.ID}}" value="{{.Value}}" data-n="{{.Count}}"{{if .Checked}} checked{{end}}>
+        <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{end}}
+    </fieldset>
+    <fieldset>
+      <legend>Company</legend>
+      {{range .Narrow.Companies}}<p class="search-opt"><input type="checkbox" name="in_company" id="{{.ID}}" value="{{.Value}}" data-n="{{.Count}}"{{if .Checked}} checked{{end}}>
+        <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{else}}<p class="note">No company in these results.</p>{{end}}
+      {{with .Narrow.CompaniesMore}}<details class="search-more">
+        <summary>{{len .}} more {{if eq (len .) 1}}company{{else}}companies{{end}}</summary>
+        {{range .}}<p class="search-opt"><input type="checkbox" name="in_company" id="{{.ID}}" value="{{.Value}}" data-n="{{.Count}}"{{if .Checked}} checked{{end}}>
+          <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{end}}
+      </details>{{end}}
+    </fieldset>
+    <fieldset>
+      <legend>Status</legend>
+      {{range .Narrow.Statuses}}<fieldset class="search-subset">
+        <legend>{{.Legend}}</legend>
+        {{range .Options}}<p class="search-opt"><input type="checkbox" name="in_status" id="{{.ID}}" value="{{.Value}}" data-n="{{.Count}}"{{if .Checked}} checked{{end}}>
+          <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{end}}
+      </fieldset>{{end}}
+    </fieldset>
+    <fieldset>
+      <legend>Times</legend>
+      {{with .Narrow.Hand}}<p class="search-opt"><input type="checkbox" name="in_hand" id="{{.ID}}" value="1" data-n="{{.Count}}"{{if .Checked}} checked{{end}} aria-describedby="nf-hand-help">
+        <label for="{{.ID}}">{{.Label}} <span class="search-n">({{.Count}})</span></label></p>{{end}}
+      <small class="note" id="nf-hand-help">Visits and trips with a time typed or corrected by hand, and the people on them.</small>
+    </fieldset>
+    <p class="note" id="search-narrow-live" hidden>Ticking a box applies it straight away.</p>
+    <p class="actions"><button type="submit" class="button-primary">Apply filters</button>
+      {{if .Refine.Active}}<a href="{{.Narrow.ClearHref}}">Clear filters</a>{{end}}</p>
+  </form>
+</details>
+
+<div class="search-found">
+{{if .Narrow.ShowPeople}}
+<h3 id="results-people">People — {{.PeopleN}}</h3>
+{{if .People}}
+<p class="csv-link"><a href="{{.CSV.People}}" data-csv="people">Download CSV<span class="sr-only"> of these people</span></a> <small class="note">(the rows shown here)</small></p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="People found (scrolls sideways)">
+<table class="search-results" data-search-group="people">
+  <thead><tr><th>Name</th><th>Company</th><th>Trade</th><th>Phone</th><th>Where</th><th>Enrolled at</th></tr></thead>
+  <tbody>
+  {{range .People}}
+  <tr data-person-id="{{.PersonID}}">
+    <td>{{if $.Dispatch}}{{.Name}}{{else}}<a href="/roster#person-{{.PersonID}}">{{.Name}}</a>{{end}}{{if .Retired}} <small class="note">(retired)</small>{{end}}</td>
+    <td>{{if .Company}}{{.Company}}{{else}}<span class="note">(no company recorded)</span>{{end}}</td>
+    <td>{{.Trade}}</td>
+    <td>{{if .Phone}}<span class="search-phone">{{.Phone}}</span>{{else}}<span class="note">none on file</span>{{end}}</td>
+    <td>{{.Where}} <a href="/last-seen?person={{.PersonID}}" data-last-seen-link>last seen<span class="sr-only"> — {{.Name}}</span></a></td>
+    <td><a href="/analytics/site/{{.EnrolledAt}}">{{sitelabel .EnrolledAt}}</a></td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{with .PeopleMore}}<p><a href="{{.}}">Show all {{$.PeopleN}} people</a></p>{{end}}
+{{else}}<p class="note">No person matches.</p>{{end}}
+{{end}}
+
+{{if .Narrow.ShowVisits}}
+<h3 id="results-visits">Visits — {{.VisitsN}}</h3>
+{{if .Visits}}
+<p class="csv-link"><a href="{{.CSV.Visits}}" data-csv="visits">Download CSV<span class="sr-only"> of these visits</span></a> <small class="note">(the rows shown here)</small></p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Visits found (scrolls sideways)">
+<table class="search-results" data-search-group="visits">
+  <thead><tr><th>Person</th><th>Post</th><th>Time in</th><th>Time out</th><th>Truck</th><th>Company (at check-in)</th></tr></thead>
+  <tbody>
+  {{range .Visits}}
+  <tr{{if .Open}} data-open="1"{{end}}>
+    <td>{{.Person}}</td>
+    <td><a href="/analytics/site/{{.Site}}">{{sitelabel .Site}}</a></td>
+    <td>{{.In}}{{with .InHand}} <strong class="search-hand">{{.}}</strong>{{end}}</td>
+    <td>{{if .Open}}<strong>{{.Out}}</strong>{{else}}{{.Out}}{{end}}{{with .OutHand}} <strong class="search-hand">{{.}}</strong>{{end}}</td>
+    <td>{{if .Vehicle}}{{if and .TripID (not $.Dispatch)}}<a href="/trips/detail#trip-{{.TripID}}"><code>{{.Vehicle}}</code></a>{{else}}<code>{{.Vehicle}}</code>{{end}}{{end}}</td>
+    <td>{{.Company}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{with .VisitsMore}}<p><a href="{{.}}">Show all {{$.VisitsN}} visits</a></p>{{end}}
+{{else}}<p class="note">No visit matches.</p>{{end}}
+{{end}}
+
+{{if .Narrow.ShowTrips}}
+<h3 id="results-trips">Trips — {{.TripsN}}</h3>
+{{if .Trips}}
+<p class="csv-link"><a href="{{.CSV.Trips}}" data-csv="trips">Download CSV<span class="sr-only"> of these trips</span></a> <small class="note">(the rows shown here)</small></p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Trips found (scrolls sideways)">
+<table class="search-results" data-search-group="trips">
+  <thead><tr><th>Truck</th><th>From → to</th><th>Dispatched</th><th>Arrived</th><th>Driver</th><th>Aboard</th><th>Status</th></tr></thead>
+  <tbody>
+  {{range .Trips}}
+  <tr>
+    <td>{{if $.Dispatch}}<code>{{.Vehicle}}</code>{{else}}<a href="/trips/detail#trip-{{.TripID}}"><code>{{.Vehicle}}</code></a>{{end}}</td>
+    <td><a href="/analytics/site/{{.Origin}}">{{sitelabel .Origin}}</a> →
+      {{if .DestSite}}<a href="/analytics/site/{{.DestSite}}">{{.Destination}}</a>{{else}}{{.Destination}}{{end}}</td>
+    <td>{{.Dispatched}}{{with .DispHand}} <strong class="search-hand">{{.}}</strong>{{end}}</td>
+    <td>{{if .Arrived}}{{.Arrived}}{{with .ArrHand}} <strong class="search-hand">{{.}}</strong>{{end}}{{else}}<span class="note">not arrived</span>{{end}}</td>
+    <td>{{.Driver}}</td>
+    <td>{{range $i, $n := .Aboard}}{{if $i}}, {{end}}{{$n}}{{else}}<span class="note">driver only</span>{{end}}</td>
+    <td>{{.Status}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{with .TripsMore}}<p><a href="{{.}}">Show all {{$.TripsN}} trips</a></p>{{end}}
+{{else}}<p class="note">No trip matches.</p>{{end}}
+{{end}}
+<p class="note">Newest first.{{if not .Dispatch}} Names open the
+roster; trucks open the trip in the trips detail.{{end}} Searched in {{.Elapsed}}.</p>
+</div>
+</div>
+<script id="search-narrow-script">
+/* Progressive enhancement only — the panel is a plain GET form that works
+   with scripting off. On a wide screen it starts open; ticking a box
+   applies it at once (said so beside the button), and focus comes back to
+   that box: its id rides in the URL's fragment. No storage — the URL is
+   the whole state. */
+(function () {
+  var d = document.getElementById('search-narrow');
+  if (!d) return;
+  var f = d.querySelector('form');
+  var back = location.hash.length > 1 && f.querySelector('input[type=checkbox][id="' + location.hash.slice(1).replace(/"/g, '') + '"]');
+  if (back || (window.matchMedia && window.matchMedia('(min-width: 60rem)').matches)) d.open = true;
+  if (back) {
+    var more = back.closest('details.search-more');
+    if (more) more.open = true;
+    back.focus();
+  }
+  var note = document.getElementById('search-narrow-live');
+  if (note) note.hidden = false;
+  f.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.type !== 'checkbox') return;
+    f.action = '/search#' + t.id;
+    f.submit();
+  });
+})();
+</script>
+{{end}}
+{{end}}
+
+{{if .Dispatch}}
+<nav class="pagenav"><a href="/analytics">dispatch analytics</a> · <a href="/history/overdue">overdue history</a> · <a href="/history/signouts">missed sign-outs</a> · <a href="/history/signal">lost-signal history</a></nav>
+{{else}}
+<nav class="pagenav"><a href="/gate">gate</a> · <a href="/trips">operator console</a> · <a href="/trips/detail">trips detail</a> ·
+  <a href="/roster">roster</a> · <a href="/muster">muster</a> · <a href="/analytics">dispatch analytics</a> · <a href="/history/overdue">history reports</a> · <a href="/status">status page</a></nav>
+{{end}}
+{{template "page_close" .}}

@@ -1,0 +1,50 @@
+{{template "page_open" (dict
+  "Title" (printf "Overdue history — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* history_overdue.html — GET /history/overdue (history.go). */}}
+<h1>Overdue history</h1>
+{{template "history_head" .}}
+<p>Runs that went past their deadline: how late, who acknowledged the alert and when, and how the run ended.
+A run is listed when it ended (or, still open, is now) after its due time, or when a post on the run
+acknowledged it as OVERDUE.</p>
+{{template "history_filter" (dict "Page" . "Action" "/history/overdue" "Routes" .Routes "DateHelp" "Dates are the day the run left, by the sending post's clock.")}}
+{{if .Err}}
+<div class="notice notice-critical"><strong>REPORT UNAVAILABLE</strong> — {{.Err}}. Nothing is shown, so nothing can be
+mistaken for a complete report.</div>
+{{else if not .Filter.Problems}}
+<h2 id="results">{{len .Rows}} {{if eq (len .Rows) 1}}run{{else}}runs{{end}} past the deadline
+  <small class="note">of {{.Considered}} with a deadline</small></h2>
+{{if .Rows}}
+<ul class="history-counts note">
+  <li>{{.Counts.Arrived}} arrived</li><li>{{.Counts.TurnedBack}} turned back</li>{{if .Counts.Back}}<li>{{.Counts.Back}} back from the road</li>{{end}}
+  <li>{{.Counts.Open}} still open</li>{{if .Counts.Cancelled}}<li>{{.Counts.Cancelled}} cancelled</li>{{end}}
+  <li>{{.Counts.Acked}} acknowledged as OVERDUE</li>
+</ul>
+{{template "history_csv" (dict "Href" .CSVHref "Name" "overdue" "Title" "overdue history" "N" (len .Rows))}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Runs past their deadline (scrolls sideways)">
+<table class="search-results history-table" data-history="overdue">
+  <thead><tr><th scope="col">Truck</th><th scope="col">Route</th><th scope="col">Left</th><th scope="col">Allowance / due</th>
+    <th scope="col">How late</th><th scope="col">Acknowledged</th><th scope="col">Outcome</th></tr></thead>
+  <tbody>
+  {{range .Rows}}<tr data-trip="{{.TripID}}"{{if .Open}} class="history-open"{{end}}>
+    <td><code>{{.Vehicle}}</code></td>
+    <td>{{.Route}}</td>
+    <td>{{.Dispatched}}</td>
+    <td>{{.Allowance}}<br><small class="note">due {{.Due}}</small></td>
+    <td><strong>{{.Late}}</strong></td>
+    <td>{{range .Acks}}<span class="history-ack{{if .Retracted}} history-withdrawn{{end}}">{{.Text}}</span><br>{{else}}<span class="note">not acknowledged</span>{{end}}</td>
+    <td>{{if .Open}}<strong>{{.Outcome}}</strong>{{else}}{{.Outcome}}{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}<p class="note">No run in this range went past its deadline.</p>{{end}}
+<p class="note">Times are as each post's clock recorded them: the due time is the departure plus the allowance — the
+departure time the sending post's officer typed, when one was typed (James, 2026-10-06), otherwise when that post
+recorded the dispatch — and the arrival is the receiving post's record, so "how late" compares two posts' clocks, as
+the dispatch view's OVERDUE does. An acknowledgment's time is the acknowledging post's clock.</p>
+{{end}}
+{{template "history_foot" .}}
+{{template "page_close" .}}

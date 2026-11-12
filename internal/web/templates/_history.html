@@ -1,0 +1,55 @@
+{{/* _history — the shared head and foot of the three history reports
+     (history.go, FIX16f). Read-only on every host: the filter is a plain
+     GET form (works with scripting off) and nothing posts anywhere. On the
+     dispatch host (.Dispatch) nothing links into the operator console. */}}
+{{define "history_head"}}
+<p class="note">{{.Scope}} Rendered {{.RenderedAt}} by this post's clock.</p>
+<nav class="history-tabs" aria-label="History reports">
+  <ul>{{range .Links}}<li>{{if .Current}}<a href="{{.Href}}" aria-current="page">{{.Title}}</a>{{else}}<a href="{{.Href}}">{{.Title}}</a>{{end}}</li>{{end}}</ul>
+</nav>
+{{end}}
+
+{{define "history_filter"}}
+<form class="search-form history-filter" method="get" action="{{.Action}}" aria-label="Filter this report">
+  <fieldset class="search-filters">
+    <legend>Filter</legend>
+    <div class="search-grid">
+      <p class="field"><label class="field-label" for="h-from">From (date)</label>
+        <input type="date" id="h-from" name="from" value="{{.Page.Filter.From}}" placeholder="2026-10-01"></p>
+      <p class="field"><label class="field-label" for="h-to">To (date)</label>
+        <input type="date" id="h-to" name="to" value="{{.Page.Filter.To}}" placeholder="2026-10-06"></p>
+      {{if .Page.Sites}}<p class="field"><label class="field-label" for="h-site">Site</label>
+        <select id="h-site" name="site">
+          <option value="">All sites</option>
+          {{range .Page.Sites}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select></p>{{end}}
+      {{with .Routes}}<p class="field"><label class="field-label" for="h-route">Route</label>
+        <select id="h-route" name="route">
+          <option value="">All routes</option>
+          {{range .}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select></p>{{end}}
+    </div>
+    <small class="note">{{.DateHelp}} Both dates are included; leave either empty for no limit.</small>
+  </fieldset>
+  <p class="actions"><button type="submit" class="button-primary">Show</button>
+    {{if .Page.Filter.Active}}<a class="button" href="{{.Action}}">Clear</a>{{end}}</p>
+</form>
+{{with .Page.Filter.Problems}}
+<div class="notice notice-warn"><strong>NOT FILTERED</strong> — fix this and try again:
+  <ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>
+{{end}}
+{{end}}
+
+{{define "history_csv"}}
+<p class="csv-link"><a href="{{.Href}}" data-csv="{{.Name}}">Download CSV<span class="sr-only"> of the {{.Title}}</span></a>
+  <small class="note">({{.N}} {{if eq .N 1}}row{{else}}rows{{end}}, the rows below; times in UTC)</small></p>
+{{end}}
+
+{{define "history_foot"}}
+{{if .Dispatch}}
+<nav class="pagenav"><a href="/analytics">dispatch analytics</a> · <a href="/search">search records</a></nav>
+{{else}}
+<nav class="pagenav"><a href="/gate">gate</a> · <a href="/trips">operator console</a> · <a href="/muster">muster</a> ·
+  <a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/status">status page</a></nav>
+{{end}}
+{{end}}

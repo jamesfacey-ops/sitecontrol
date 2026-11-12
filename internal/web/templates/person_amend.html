@@ -1,0 +1,105 @@
+{{template "page_open" (dict
+  "Title" (printf "Amend person — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* person_amend.html — the officer-facing amendment + merge surface (W3,
+     item 4; D-46). One screen: amend a field, clear a field, merge
+     (same_as), un-merge (clear = same_as).
+
+     THE CONFIRMATION BLOCK IS PER-FACT AND COMPUTED AT RENDER TIME
+     (visible-failure-v1 §5): a clean amendment stays terse; a superseded
+     assertion says so in words, naming the post whose assertion stands; a
+     losing un-merge says the merge stands and the records remain merged;
+     an outcome that cannot be determined says exactly that, loudly, and
+     never shows the terse success line beside it.
+
+     THE STANDING LINE at the bottom is D-28's one static sentence, and its
+     precedence-taker is DERIVED from config (the greater site_id) — never
+     a hardcoded post name. Keep the whole sentence in ONE text run: no
+     periods or extra markup between "Where" and "takes precedence".
+
+     REFUSALS PRESERVE THE OFFICER'S TYPING as value="…" on every control
+     (⟦R-132, 2026-10-03⟧ — W5-X2's rule, which the company, trade and
+     vehicle forms kept and this one did not: a 409 here used to re-render
+     the id, name, phone and role boxes all blank).
+
+     NO <style> BLOCK (the shared partial owns styling), no script. */}}
+<h1>Amend person <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Outcome}}
+  {{if .Outcome.NotThisKind}}
+  {{/* ⟦D22, fix2-fj 2026-10-04⟧ a key naming an event of ANOTHER kind
+       here: nothing to confirm (the T-199 / R-080 arm). Never the
+       green "Recorded" of someone else's record. */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Outcome.Key}}</code>, which is not a person amendment recorded at this post. Opening it recorded nothing. To amend a person, use the form below.</div>
+  {{else if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this amendment</div>
+  {{else}}
+    {{range .Outcome.Rows}}
+      {{if .Effective}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Fact}}.</div>
+      {{else if .UnMerge}}
+        {{- /* ⟦L-1⟧ TWO ARMS ON THE LOSING SIDE TOO, and the split is the
+             same TRUTH split the winner's arm carries on the company
+             surface (W5 post-lock §23; F-1's class, third instance).
+             WinnerAtThisPost means the assertion that stands was authored
+             HERE, by a later amendment at this same post — the officer
+             reading this is standing at the only place it could have come
+             from, and there is no peer to call. Ordering a radio call with
+             no recipient burns radio time at 40 below and trains the
+             officer to ignore the notice on the CROSS-POST firing, which
+             is the case the visible-failure design exists for. The
+             supersession is still stated and still adverse — the officer
+             must learn their change did not take effect — and only the
+             radio clause is replaced, by what is actually true: the
+             standing value was authored here and can be amended here.
+             ⚠ The cross-post arm below is UNCHANGED, byte for byte.
+             Keep each arm in ONE unbroken text run. */}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: a later merge made at this post stands. The two records remain merged on every screen. That merge was authored here, at this post — un-merge it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: the merge made at {{.WinnerPost}} stands. The two records remain merged on every screen. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{else}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by a later amendment made at this post. Your value is kept in the record and will not display. The value that stands was authored here, at this post — amend it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by an amendment made at {{.WinnerPost}}. Your value is kept in the record and will not display. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{end}}
+    {{end}}
+  {{end}}
+{{end}}
+
+{{if .Error}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.Error}}</div>
+{{end}}
+
+<section class="card">
+  <form method="post" action="/person/amend">
+    <div class="field">
+      <label class="field-label" for="amend-person-id">Person id (the record being amended)</label>
+      <input id="amend-person-id" name="person_id" required value="{{.PrefillPersonID}}">
+    </div>
+    {{range .Fields}}
+    <div class="field">
+      <label class="field-label" for="amend-{{.Key}}">{{.Label}}</label>
+      <input id="amend-{{.Key}}" name="{{.Key}}" value="{{.Value}}">
+    </div>
+    {{end}}
+    <div class="field">
+      <label class="field-label" for="amend-clear">Clear a field (un-sets it; clear <code>same_as</code> to un-merge)</label>
+      <input id="amend-clear" name="clear" value="{{.Clear}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Amend this person</button>
+    </div>
+    <p class="note">A field left blank changes nothing. Amendments append to the record; earlier values are kept, never erased.</p>
+  </form>
+</section>
+
+{{if .HasPeer}}
+<p class="note">Where this post and {{.StandingOther}} correct the same thing, {{.StandingTaker}}'s correction takes precedence</p>
+{{end}}
+
+{{template "page_close" .}}

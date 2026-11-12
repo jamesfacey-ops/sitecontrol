@@ -1,0 +1,26 @@
+{{/* shift_totals.html — FIX16 G, the read-only Shift totals panel. A <details>
+     so it costs one or two lines on a phone and works with JS off; the
+     counts are IN the summary, so they are visible shut. No form, no link.
+     The explanation is visible text in the body (a title= tooltip is not
+     reachable by touch or keyboard) and repeated as the summary's title. */}}
+{{define "shift_totals"}}{{if .Show}}
+<details class="shift-totals">
+  <summary title="Shift totals since {{.Since}}. Shift changes at {{.Times}}{{if not .Configured}} (the default — this post names none){{end}}, post's local clock.">
+    <span class="shift-head">Shift since {{.Since}}</span>
+    {{if .Err}}<span class="shift-err">figures unavailable</span>{{else}}
+    <span class="shift-nums">
+      <span class="shift-n"><b>{{.SignIns}}</b> in</span>
+      <span class="shift-n"><b>{{.SignOuts}}</b> out</span>
+      <span class="shift-n"><b>{{.VehiclesOut}}</b> veh out</span>
+      <span class="shift-n"><b>{{.VehiclesIn}}</b> veh in</span>
+      <span class="shift-n"><b>{{.OnSite}}</b> on site</span>
+    </span>{{end}}
+  </summary>
+  <div class="shift-body note">
+    {{if .Err}}<p><strong>The shift totals could not be read</strong> — {{.Err}} The gate itself is unaffected.</p>{{else}}
+    <p>Shift started <strong>{{.Since}}</strong>, ends {{.Until}}. Shifts change at {{.Times}} on this post&rsquo;s local clock{{if not .Configured}} — the default, because this post names no <code>shift_starts</code>{{end}}.</p>
+    <p>Sign-ins = people entered; sign-outs = recorded departures (a person who simply came back in is not a sign-out); veh out = vehicles dispatched, including road-work runs; veh in = arrivals recorded here. These are the dispatch analytics &ldquo;today&rdquo; counts over the shift instead of the calendar day. On site is the count right now.{{if .Unresolved}} {{.Unresolved}} record{{if ne .Unresolved 1}}s{{end}} with an unreadable time are left out, as analytics leaves them out.{{end}}</p>
+    {{end}}
+  </div>
+</details>
+{{end}}{{end}}

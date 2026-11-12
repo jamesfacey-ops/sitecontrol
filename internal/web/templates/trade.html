@@ -1,0 +1,143 @@
+{{template "page_open" (dict
+  "Title" (printf "Trades — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* trade.html — the naming-and-numbers screen (W8, item 10).
+
+     ⚠⚠ THIS TEMPLATE MUST NOT SELECT AMONG THE THREE PHONE SLOTS. The
+     positional rule `positional(row, shift) = coalesce(phone_<shift>,
+     phone_shared)` is stated once and implemented ONCE, in Go, and a
+     with/else coalesce over two of the slot fields here would be a second
+     implementation that an AST walk over Go cannot see. That idiom is
+     already live on this app's muster sheet, so this is a real hazard
+     rather than a theoretical one. The slots are RANGED over, never named,
+     and the resolved answer arrives pre-computed as InEffectDay /
+     InEffectNight.
+     ⚠ The example is DESCRIBED and not spelled out above, deliberately: the
+     criterion's template arm reads the file as text, so a worked example of
+     the forbidden action inside a comment IS the forbidden action as far as
+     the check can tell — and a check that cannot be fooled by a comment is
+     worth more than a comment that shows its own counter-example.
+
+     ⚠ A MERGED-AWAY TRADE IS SHOWN, MARKED — never hidden. `same_as` is a
+     per-field assertion and not a deletion: the row survives, and an officer
+     who cannot see it cannot un-merge it.
+
+     THREE ERROR NOTICES, NOT TWO, because the edge has three error classes
+     and the officer's next action differs in each: a fact-domain REFUSAL
+     means the amendment asked for is not allowed (fix the amendment); an
+     INPUT-VALIDITY refusal means the record named is not here (fix the id);
+     an INTERNAL fault means this post failed (raise it). The first two carry
+     the domain's OWN authored sentence; the third carries none, because a
+     real fault's text is exactly what must not reach an officer.
+
+     NO <style> block (the shared partial owns styling), no script. */}}
+<h1>Trades <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Error}}
+  <div class="notice notice-warn">{{.Error}}</div>
+{{end}}
+{{if .InputError}}
+  <div class="notice notice-warn">{{.InputError}}</div>
+{{end}}
+{{if .InternalError}}
+  <div class="notice notice-warn">This post could not complete that — <strong>nothing was recorded</strong>. Try again, and if it repeats, radio it through.</div>
+{{end}}
+{{if .RecordedUnknown}}
+  {{/* ⟦R-080, W4 2026-10-03⟧ a ?recorded= value naming no trade change here. */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Recorded}}</code>, which is not a trade change recorded at this post, so the outcome could not be determined. Opening it recorded nothing.</div>
+{{else if .Recorded}}
+  <div class="notice notice-ok">Recorded.</div>
+{{end}}
+{{if .Outcome}}
+{{/* ⟦R-081 / M-17, 2026-10-03⟧ THE CONFIRMATION BLOCK IS PER-FACT AND
+     COMPUTED AT RENDER TIME (visible-failure-v1 §5) — the SAME four
+     renderings company_amend.html carries, in the same words, because the
+     obligation is the same: D-28's "the losing post's rejected amendment
+     must fail VISIBLY to the officer who authored it". This page used to
+     answer every ?recorded= with the bare "Recorded." above. Keep each arm
+     in ONE unbroken text run (the assertions read the notice's text). */}}
+  {{if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this amendment</div>
+  {{else}}
+    {{range .Outcome.Rows}}
+      {{if .Effective}}
+        {{if .SupersededPost}}
+          {{if eq .SupersededPost "this post"}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} amendment now stands: it takes the place of an earlier amendment made at {{.SupersededPost}}.</div>
+          {{else}}
+  <div class="notice notice-ok">Recorded. Your {{.Fact}} amendment now stands: it takes the place of an earlier amendment made at {{.SupersededPost}}. Whoever made that one is not being told by this screen — radio it through.</div>
+          {{end}}
+        {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Fact}}.</div>
+        {{end}}
+      {{else if .UnMerge}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: a later merge made at this post stands. The two records remain merged on every screen. That merge was authored here, at this post — un-merge it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your un-merge was recorded but is <strong>not in effect</strong>: the merge made at {{.WinnerPost}} stands. The two records remain merged on every screen. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{else}}
+        {{- if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by a later amendment made at this post. Your value is kept in the record and will not display. The value that stands was authored here, at this post — amend it again on this form.</div>
+        {{- else}}
+  <div class="notice notice-warn">Your {{.Fact}} amendment was recorded but is <strong>superseded</strong> by an amendment made at {{.WinnerPost}}. Your value is kept in the record and will not display. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{- end}}
+      {{end}}
+    {{end}}
+  {{end}}
+{{end}}
+
+<h2>This site's trades</h2>
+{{if .Trades}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="This site's trades (table, scrolls sideways)">
+<table class="grid">
+  <thead>
+    <tr><th>Trade</th><th>Id</th><th>Recorded numbers</th><th>In effect</th></tr>
+  </thead>
+  <tbody>
+  {{range .Trades}}
+    <tr>
+      <td>{{.Name}}{{if .MergedInto}} <small class="note">merged into {{.MergedInto}}</small>{{end}}{{if .SameNameOrigin}} <small class="note" data-same-name-trade="{{.TradeID}}">added at {{.SameNameOrigin}} — same name as another trade; if they are one trade, use Same as</small>{{end}}</td>
+      <td><code>{{.TradeID}}</code></td>
+      <td>
+        {{range .Phones}}<div>{{.Label}}: {{if .Number}}{{.Number}}{{else}}<span class="note">not recorded</span>{{end}}</div>{{end}}
+      </td>
+      <td>
+        <div>Day: {{if .InEffectDay}}{{.InEffectDay}}{{else}}<span class="note">no number</span>{{end}}</div>
+        <div>Night: {{if .InEffectNight}}{{.InEffectNight}}{{else}}<span class="note">no number</span>{{end}}</div>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="note">No trades on this site's list yet.</p>
+{{end}}
+
+<h2>Add a trade</h2>
+<form method="post" action="/trade/create">
+  <p class="field">
+    <label class="field-label" for="new-trade-name">Trade name</label>
+    <input type="text" id="new-trade-name" name="name" autocomplete="off" value="{{.NewName}}">
+  </p>
+  <p><button type="submit">Add trade</button></p>
+</form>
+
+<h2>Amend a trade</h2>
+<form method="post" action="/trade/amend">
+  <p class="field">
+    <label class="field-label" for="trade-id">Trade id</label>
+    <input type="text" id="trade-id" name="trade_id" autocomplete="off" value="{{.TradeID}}">
+  </p>
+  {{range .Fields}}
+  <p class="field">
+    <label class="field-label" for="trade-f-{{.Key}}">{{.Label}}</label>
+    <input type="text" id="trade-f-{{.Key}}" name="{{.Key}}" autocomplete="off" value="{{.Value}}">
+    <label><input type="checkbox" name="clear" value="{{.Key}}"> clear this</label>
+  </p>
+  {{end}}
+  <p><button type="submit">Record amendment</button></p>
+</form>
+{{template "page_close"}}

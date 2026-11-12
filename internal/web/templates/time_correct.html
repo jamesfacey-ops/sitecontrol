@@ -1,0 +1,100 @@
+{{template "page_open" (dict
+  "Title" (printf "Correct a time — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* time_correct.html — the officer-facing time-correction surface (W4,
+     item 14). Name a recorded event by its log key, type when it actually
+     happened, sign it.
+
+     THE CONFIRMATION BLOCK IS COMPUTED AT RENDER TIME (visible-failure-v1
+     §5): a clean correction stays terse; the winning post's notice names
+     what it beat, with the officer suffix when the beaten correction was
+     signed; a beaten correction says so in words, naming the post whose
+     correction stands, with the radio-through recovery sentence; an
+     outcome that cannot be determined says exactly that, loudly, and never
+     shows the terse success line beside it.
+
+     THERE IS NO time_source CONTROL HERE (D-44): the typed instant is the
+     event's PAYLOAD, and the correction act's own timestamp is stamped by
+     the machine — overriding it is declined UI. TP §4.6's bounds fire on
+     the typed instant unconditionally, and the warn-accept notices arrive
+     via the shared time_warnings partial.
+
+     THE STANDING LINE at the bottom is D-28's one static sentence, derived
+     from config (the greater site_id) — never a hardcoded post name. Keep
+     it in ONE text run.
+
+     NO <style> BLOCK (the shared partial owns styling), no script. */}}
+<h1>Correct a recorded time <small>({{sitelabel .SiteID}})</small></h1>
+
+{{template "time_warnings" .TimeWarnings}}
+
+{{if .Outcome}}
+  {{if .Outcome.NotACorrection}}
+  {{/* ⟦T-199, W4 2026-10-03⟧ a ?recorded= key that names no time
+       correction here: nothing to confirm, and nothing recorded by
+       opening the link. Never the green "Recorded and effective". */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Outcome.Key}}</code>, which is not a time correction recorded at this post. Opening it recorded nothing. To correct a time, use the form below.</div>
+  {{else if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this correction</div>
+  {{else if .Outcome.Superseded}}
+    {{- /* ⟦L-1's class, fifth instance — W5 post-lock §26⟧ TWO ARMS, the
+         same TRUTH split the two amendment surfaces carry (§24) and the
+         company winner's arm carries (§19.1). WinnerAtThisPost means the
+         correction that stands was authored HERE, by a later correction at
+         this same post; the officer reading this is standing at the only
+         place it could have come from, and there is nobody to radio.
+         ⚠ The signal is a HANDLER bool, not a name test: WinnerPost comes
+         from peerDisplayName, which answers for this post's own site id
+         with its configured display name ("Ice Road A") — reading as a
+         different post entirely — and is shared with both amendment
+         surfaces and D-28's standing line, so it may not be special-cased.
+         The supersession stays stated and stays adverse, the officer's own
+         value is still returned to them, and only the recovery sentence is
+         replaced by what is true — the standing value was authored here
+         and can be corrected here.
+         ⚠ The cross-post arm below is UNCHANGED, byte for byte: it is the
+         case radioing IS the right instruction for (§6 case 4).
+         Keep each arm in ONE unbroken text run. */}}
+    {{- if .Outcome.WinnerAtThisPost}}
+  <div class="notice notice-warn">Your correction was recorded but is <strong>superseded</strong> by a later correction made at this post. Effective: {{.Outcome.EffectiveWall}}.{{if .Outcome.OwnWall}} Your value ({{.Outcome.OwnWall}}) is kept in the record and will not display.{{end}} The correction that stands was authored here, at this post — correct it again on this form.</div>
+    {{- else}}
+  <div class="notice notice-warn">Your correction was recorded but is <strong>superseded</strong> by a correction made at {{.Outcome.WinnerPost}}. Effective: {{.Outcome.EffectiveWall}}.{{if .Outcome.OwnWall}} Your value ({{.Outcome.OwnWall}}) is kept in the record and will not display.{{end}} A correction that must take effect can only be authored at {{.Outcome.WinnerPost}} — radio it through.</div>
+    {{- end}}
+  {{else if .Outcome.Superseding}}
+  <div class="notice notice-ok">Recorded and effective: {{.Outcome.EffectiveWall}}. This supersedes {{range $i, $p := .Outcome.Superseding}}{{if $i}}; and {{end}}a correction made at {{$p.Post}} ({{$p.Wall}}{{if $p.RecordedBy}}, recorded by {{$p.RecordedBy}}{{end}}){{end}}.</div>
+  {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Outcome.EffectiveWall}}.</div>
+  {{end}}
+{{end}}
+
+{{if .Error}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.Error}}</div>
+{{end}}
+
+<section class="card">
+  <form method="post" action="/time/correct">
+    <div class="field">
+      <label class="field-label" for="correct-target">Target event (its key, as site.epoch.seq)</label>
+      <input id="correct-target" name="target" required value="{{.Target}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="correct-time">When it actually happened</label>
+      <input id="correct-time" type="datetime-local" name="corrected_occurred_at" required value="{{.CorrectedWall}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="correct-officer">Officer (recorded by)</label>
+      <input id="correct-officer" name="recorded_by" value="{{.RecordedBy}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Correct this time</button>
+    </div>
+    <p class="note">A correction appends a new record against the named event; the time first entered stays in the log, never erased or overwritten. The typed time is stored exactly as typed — never adjusted.</p>
+  </form>
+</section>
+
+{{if .HasPeer}}
+<p class="note">Where this post and {{.StandingOther}} correct the same thing, {{.StandingTaker}}'s correction takes precedence</p>
+{{end}}
+
+{{template "page_close" .}}

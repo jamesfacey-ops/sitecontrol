@@ -1,0 +1,36 @@
+{{/* post_chip — the attribution slot in the persistent top bar (D-5,
+     2026-08-21: "yes by post not person"). It states, without asking for
+     anything, what this box records as: the site control post it IS.
+
+     It replaced officer_picker, which offered a short list of PERSON names
+     and required one tap per session before the first authored action. The
+     post is configuration (config.PostName), so there is nothing to pick,
+     nothing to switch at handover, and nothing to get wrong — and the same
+     fact already rides every replicated event structurally as
+     store.Envelope.SiteID, which no payload can contradict.
+
+     Expects a data value with .Post (string). Mounted by _topbar.html only
+     for pages whose handler populates it — so its presence still means
+     "this page rendered for an authenticated session", which layout_test.go
+     and auth_test.go assert on, and it still carries the Log out control.
+     Hidden on paper with the rest of the bar. */}}
+{{define "post_chip"}}
+{{/* ⟦S-034, 2026-10-03⟧ a page that also carries .Anonymous (the gate
+     pages — GET /gate and /gate/vehicle are ungated, §12) says it is NOT
+     logged in instead of "Recording as … / Log out", which read as a
+     session nobody had. `and` short-circuits, so a page without the field
+     is never asked for it and renders exactly as before. */}}
+{{if and (has . "Anonymous") .Anonymous}}
+<div class="chip chip-ice">
+  <span class="chip-label">Not logged in</span>
+  <span class="chip-value">{{.Post}}</span>
+  <a href="/login">Log in to record</a>
+</div>
+{{else}}
+<div class="chip chip-ice">
+  <span class="chip-label">Recording as:</span>
+  <span class="chip-value">{{.Post}}</span>
+  <form method="post" action="/logout"><button type="submit">Log out</button></form>
+</div>
+{{end}}
+{{end}}

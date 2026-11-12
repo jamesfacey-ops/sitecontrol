@@ -1,0 +1,72 @@
+{{template "page_open" (dict
+  "Title" (printf "Last seen%s — %s — Site Control" (or (and .Name (printf ": %s" .Name)) "") (sitelabel .SiteID))
+  "Main" "last-seen"
+  "Data" .)}}
+{{/* last_seen.html — GET /last-seen?person=<id> (last_seen.go, FIX16a).
+     Read-only, login-only on every host. On the dispatch host (.Dispatch)
+     nothing links into the operator console: posts link to
+     /analytics/site/{id}, and trucks are plain text. */}}
+<style>
+.last-seen-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3, .75rem); margin: 0; }
+@media (min-width: 40rem) { .last-seen-list { grid-template-columns: 11rem minmax(0, 1fr); } }
+.last-seen-list dt { font-weight: 650; }
+.last-seen-list dd { margin: 0; overflow-wrap: anywhere; }
+.last-seen-ago { font-weight: 650; }
+</style>
+{{if not .PersonID}}
+<h1>Last seen</h1>
+<p class="note">Choose a person from a <a href="/search">search</a>, or a name on the
+<a href="/muster/at">muster at a time</a>, to see where the record last saw them.</p>
+{{else if .Err}}
+<h1>Last seen</h1>
+<div class="notice notice-critical"><strong>COULD NOT LOOK THIS UP</strong> — {{.Err}}. Nothing is shown, so nothing
+can be mistaken for the answer.</div>
+{{else if not .Found}}
+<h1>Last seen</h1>
+<div class="notice notice-warn" id="last-seen-unknown"><strong>NOT FOUND</strong> — no person with that record is on
+file at {{.Cfg.PostName}}, and no visit names them. Try a <a href="/search">search</a>.</div>
+{{else}}
+<h1>Last seen: {{.Name}}</h1>
+<dl class="last-seen-list" data-last-seen-person="{{.PersonID}}">
+  <dt>Now</dt>
+  <dd data-last-seen="now">{{.Now}}</dd>
+  {{if .Company}}<dt>Company</dt><dd>{{.Company}}{{with .Trade}} — {{.}}{{end}}</dd>{{end}}
+  <dt>Phone</dt><dd>{{if .Phone}}<span class="search-phone">{{.Phone}}</span>{{else}}<span class="note">none on file</span>{{end}}</dd>
+  {{if .EnrolledAt}}<dt>Enrolled at</dt><dd><a href="/analytics/site/{{.EnrolledAt}}">{{sitelabel .EnrolledAt}}</a>{{if .Retired}} <small class="note">(retired)</small>{{end}}</dd>{{end}}
+
+  <dt>Last sign-in</dt>
+  <dd data-last-seen="sign-in">{{with .SignIn}}
+    <a href="/analytics/site/{{.Site}}">{{sitelabel .Site}}</a>, {{.In}}{{with .InHand}} <strong class="search-hand">{{.}}</strong>{{end}}
+    — <span class="last-seen-ago">{{.Ago}}</span>.
+    Time out: {{if .Open}}<strong>{{.Out}}</strong>{{else}}{{.Out}}{{with .OutHand}} <strong class="search-hand">{{.}}</strong>{{end}}{{end}}.
+  {{else}}<span class="note">no sign-in on record here</span>{{end}}</dd>
+
+  <dt>Last sign-out</dt>
+  <dd data-last-seen="sign-out">{{with .SignOut}}
+    <a href="/analytics/site/{{.Site}}">{{sitelabel .Site}}</a>, {{.Out}}{{with .OutHand}} <strong class="search-hand">{{.}}</strong>{{end}}
+    — {{.How}} — <span class="last-seen-ago">{{.Ago}}</span>. (Signed in {{.In}}.)
+  {{else}}<span class="note">no sign-out on record here</span>{{end}}</dd>
+
+  <dt>Last trip</dt>
+  <dd data-last-seen="trip">{{with .Trip}}
+    {{if $.Dispatch}}<code>{{.Vehicle}}</code>{{else}}<a href="/trips/detail#trip-{{.TripID}}"><code>{{.Vehicle}}</code></a>{{end}},
+    <a href="/analytics/site/{{.From}}">{{sitelabel .From}}</a> →
+    {{if .ToSite}}<a href="/analytics/site/{{.ToSite}}">{{.To}}</a>{{else}}{{.To}}{{end}}.
+    Left {{.Left}}{{with .LeftHand}} <strong class="search-hand">{{.}}</strong>{{end}} — <span class="last-seen-ago">{{.Ago}}</span>.
+    {{if .Arrived}}{{if eq .Status "cancelled"}}Cancelled{{else}}Ended{{end}} {{.Arrived}}{{with .ArrHand}} <strong class="search-hand">{{.}}</strong>{{end}}.{{end}}
+    Status: {{.Status}}.
+    Driver: {{if .Driver}}{{.Driver}}{{else}}<span class="note">not recorded</span>{{end}}{{if .WasDriving}} (this person){{end}}.
+    Aboard: {{range $i, $n := .Aboard}}{{if $i}}, {{end}}{{$n}}{{else}}<span class="note">driver only</span>{{end}}.
+  {{else}}<span class="note">no trip on record here</span>{{end}}</dd>
+</dl>
+{{if .Merged}}<p class="note">Includes {{.Merged}} other record{{if ne .Merged 1}}s{{end}} linked to this person as the same person.</p>{{end}}
+<p class="note">Each time is as its own post's clock recorded it; “ago” is measured on {{.Cfg.PostName}}'s clock. Looked up in {{.Elapsed}}.</p>
+{{end}}
+
+{{if .Dispatch}}
+<nav class="pagenav"><a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/muster/at">muster at a time</a></nav>
+{{else}}
+<nav class="pagenav"><a href="/search">search</a> · <a href="/muster">live muster board</a> · <a href="/muster/at">muster at a time</a> ·
+  <a href="/roster">roster</a> · <a href="/gate">gate</a></nav>
+{{end}}
+{{template "page_close" .}}

@@ -1,0 +1,395 @@
+{{template "page_open" (dict
+  "Title" (printf "Roster — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* intake.html — PERSON INTAKE and the roster it writes into.
+
+     THE TWO LANES, and why they are different screens.
+
+       This page  — enrolment. Slow, deliberate, done once per person, and
+                    it INSISTS on a company, because the muster groups by
+                    company and the muster is read aloud during an
+                    evacuation.
+       /gate      — check-in. A truck at the window at -30 and twenty-six
+                    people on a bus. Type a few characters, pick the person,
+                    next. Company is not asked for there and must not be:
+                    five fields x 26 people at the window is unusable, and an
+                    unusable form is one that gets worked around.
+
+     The join between them is the "needs their details" queue below. It is
+     DERIVED (person.company_id IS NULL), never a stored flag: a flag can
+     disagree with the row it describes, and this cannot. Somebody enrolled
+     in a hurry at the window shows up here until their details are on file,
+     so the fast lane's incompleteness is visible and finite instead of
+     silent and permanent.
+
+     THE PHONE NUMBER FIELD (W5b, item 2). It was deliberately absent until
+     Person had somewhere to store one — a box that silently discards what an
+     operator types into it is worse than no box, because the operator would
+     believe the number was recorded. The schema decision was made and the
+     box arrived with it: person_created carries `phone` and the projection
+     has the column. It is required on THIS form only; the gate's
+     add-on-demand path is exempt (D-52), so the roster carries honest gaps
+     rather than fabricated numbers.
+
+     NO <style> BLOCK. Every class used here is already in the shared
+     stylesheet partial, and TestEveryPageRendersTheSharedShellExactlyOnce
+     asserts exactly one <style> per page. */}}
+<h1>Roster <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Notice}}
+<div class="notice notice-ok"><strong>ENROLLED</strong> — {{.Notice}}</div>
+{{end}}
+
+{{if .Error}}
+{{/* The refusal opens with its KIND, not with its data — the same M-09 rule
+     the gate's notices follow. */}}
+<div class="notice notice-critical" id="intake-error">
+  <strong>NOT ENROLLED</strong> — {{.Error}}
+</div>
+{{end}}
+
+{{if .Candidates}}
+{{/* ⟦R-12 + R-10⟧ THE TICK OFFER. The refusal above named the existing
+     records; this is the officer's CONFIRMATION — one named person, their
+     company and where they were enrolled — and the tick lands on that
+     preexisting record through the ordinary marking route. Nothing is
+     adopted on a name match; a button per candidate is the ask. Rendered
+     only at an orientation post (intake.go sets Candidates nowhere else;
+     the route does not exist at a road post). */}}
+<div class="notice notice-info" id="intake-tick-offer">
+  <strong>ALREADY IN THE SYSTEM?</strong> If one of these is the same person, do not enrol them again —
+  record {{.Post}}'s orientation against their existing record instead:
+  <ul>
+  {{range .Candidates}}
+    <li data-candidate-person="{{.PersonID}}">{{.Name}}{{if .Company}} — {{.Company}}{{end}} (enrolled at <code>{{sitelabel .Site}}</code>):
+      {{if .HoldsHere}}already holds {{$.Post}}'s orientation — check them in at the gate.{{else}}
+      <form method="post" action="/orientation/complete" class="inline">
+        <input type="hidden" name="person_id" value="{{.PersonID}}">
+        <button type="submit">Same person — record {{$.Post}}'s orientation for {{.Name}}</button>
+      </form>{{end}}
+    </li>
+  {{end}}
+  </ul>
+</div>
+{{end}}
+
+{{if .Unconfirmed}}
+{{/* IDENTITY NOT YET CONFIRMED. James: "if it sees someone new it should
+     flag them for sure — not make a new entry." These people ARE on the
+     roster and ARE on the muster: presence is never in question, only which
+     record they are. The section sits above the intake form on purpose —
+     the reconciling work is the work, and enrolling somebody new is the
+     rare thing. */}}
+<section class="card">
+  <h2 class="section-head">Identity not yet confirmed — {{len .Unconfirmed}}</h2>
+  <p><small class="note">These records were made at a post that is not the entrance
+  (<code>{{sitelabel .EntranceSiteID}}</code>), and nothing has linked them to a record from it yet.
+  <strong>They are on the roster and they are on the muster</strong> — the person was here.
+  What is unconfirmed is whether this record is the same person as one the entrance already
+  holds. Once the entrance's record arrives, link the two; until then, treat the name as
+  correct and the record as provisional.</small></p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Roster table 1 (scrolls sideways)">
+    <table id="unconfirmed-identities">
+      <thead><tr><th>Name</th><th>Company</th><th>Record made at</th></tr></thead>
+      <tbody>
+      {{range .Unconfirmed}}
+        <tr data-person-id="{{.PersonID}}" data-unconfirmed="1">
+          <td>{{.Display}}</td>
+          <td class="company-name">{{if .Company}}{{.Company}}{{else}}(no company recorded){{end}}</td>
+          <td><code>{{sitelabel .EnrolledAt}}</code></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{end}}
+
+{{if and .EntranceKnown (not .IsEntrance)}}
+{{/* DOWNSTREAM OF THE ENTRANCE. Same capability, different prominence.
+     Everything below is inside a <details>, which is native HTML: one click,
+     no script, no permission, nothing withheld. An operator with somebody in
+     front of them at -30 opens it and proceeds. It is closed by default
+     because the overwhelmingly likely explanation for an unfamiliar name
+     here is that the link is behind, not that the person was never enrolled
+     — and acting on the wrong one of those puts a second identity for one
+     human onto the evacuation sheet. */}}
+<section class="card" id="downstream-note">
+  <h2 class="section-head">Looking for somebody who is not on the list?</h2>
+  <p><strong>This post is <code>{{sitelabel .SiteID}}</code>, which is not the entrance.</strong>
+  The ice road at <code>{{sitelabel .EntranceSiteID}}</code> is the only way onto the site, so anybody
+  standing here came through it and was enrolled there. A name missing from the roster below
+  almost always means their record has not reached this post yet.</p>
+  <ol>
+    <li><strong>Search the roster below</strong> — the name may be filed as “Last, First”.</li>
+    <li><strong>Check the sync state</strong> in the bar at the top of this page. If this post is
+      behind its peer, the record is probably on its way.</li>
+    <li><strong>If they are here now, check them in anyway.</strong> Presence is never withheld
+      for a paperwork reason — a person left off the muster is the one failure this system exists
+      to prevent. Their record will be flagged above as an identity to confirm, and someone
+      links it to the entrance’s record afterwards.</li>
+  </ol>
+</section>
+
+{{/* ⟦R-004x, 2026-10-03⟧ OPEN on a refusal: the officer was just told to
+     tick a box (or fix a value) inside this disclosure, so it must be on
+     screen. Closed on the plain load and the post-enrolment landing — the
+     demotion itself is unchanged. */}}
+<details class="card" id="intake-disclosure"{{openattr .IntakeOpen}}>
+  <summary><strong>Enrol somebody who is not on the roster</strong> — rare at this post</summary>
+{{end}}
+<section class="card">
+  <h2 class="section-head">Enrol a new person</h2>
+  <p class="note" id="intake-import-link">Many people at once? <a href="/roster/import">Import a roster from a spreadsheet</a> (CSV) — every row is checked before anything is added.</p>
+
+  {{/* THE TOPOLOGY NOTE, and it says a DIFFERENT TRUE THING at each post
+       rather than one hedged thing at both. At the entrance, enrolling
+       people is this screen's everyday job. Downstream of it, the same
+       capability exists and is never blocked — but an unrecognised name
+       there is far more likely to be a sync gap than a new person, and
+       saying so is the whole safety value of the note.
+
+       Where nobody has configured which post is the entrance, the page
+       claims NEITHER: "not the entrance" and "nobody has said which post is
+       the entrance" are different statements. */}}
+  {{if .IsEntrance}}
+  <div class="notice notice-info" id="intake-origin-note">
+    <strong>THIS POST IS THE ENTRANCE.</strong>
+    The ice road is the only way onto the site, so this is where people join the roster.
+    Enrol them once, here, with their company and work group — everything downstream, including
+    the muster grouping read aloud in an evacuation, is built from what is captured on this form.
+  </div>
+  {{else if .EntranceKnown}}
+  <div class="notice notice-warn" id="intake-origin-note">
+    <strong>THIS POST IS NOT THE ENTRANCE.</strong>
+    Enrolling somebody here is allowed and is never blocked — but it is rare and it has a cost:
+    if they are already enrolled at <code>{{sitelabel .EntranceSiteID}}</code>, this creates a
+    <strong>second record for one person</strong>, and the two records group separately on the
+    muster until somebody links them. Search the roster and check the sync state first.
+  </div>
+  {{else}}
+  <div class="notice notice-info" id="intake-origin-note">
+    <strong>ENROLMENT BELONGS AT THE ENTRANCE.</strong>
+    The ice road is the only way onto the site, so anybody standing anywhere else came through it
+    and should already be on this roster. No entrance post is named for this deployment,
+    so this screen cannot tell you whether this post is that
+    entrance — search the roster before enrolling anybody, and check the sync state if a name is
+    missing.
+    <br><small class="note">This post is <code>{{sitelabel .SiteID}}</code>. Enrolments made here are recorded
+    as made here, and show as such on the roster at both posts.</small>
+  </div>
+  {{end}}
+
+  {{if .HasOrientation}}
+  {{/* ⟦R-12, 2026-09-10⟧ James: "no one will be placed in the system without
+       the oriantation" — at an orientation post this form IS the orientation
+       record, and it says so before the button is pressed. */}}
+  <div class="notice notice-info" id="intake-orientation-note">
+    <strong>THIS FORM ALSO RECORDS THE ORIENTATION.</strong>
+    Nobody is placed in the system without an orientation, so enrolling a person here records that they
+    completed {{.Post}}'s orientation today, at this desk. Somebody already in the system — enrolled at
+    another site — is not enrolled again: search the roster, and tick them on the
+    <a href="/orientation">orientation page</a> instead (or use the offer this form makes when a name matches).
+  </div>
+  {{end}}
+
+  <form method="post" action="/roster/intake">
+    {{/* Last name first, because the roster, the sort order and the person
+         box are all "Last, First" — the form reads in the order the output
+         does. Both are required: intake is the ONE place a person's details
+         are captured, and a half-entered name is read aloud during an
+         evacuation exactly as it was typed. */}}
+    <p class="field">
+      <label class="field-label" for="last-name">Last name</label>
+      <input type="text" id="last-name" name="last_name" autocomplete="off" required autofocus value="{{.Form.Last}}">
+    </p>
+    <p class="field">
+      <label class="field-label" for="first-name">First name</label>
+      <input type="text" id="first-name" name="first_name" autocomplete="off" required value="{{.Form.First}}">
+    </p>
+
+    {{/* PHONE (W5b, item 2). Required here and nowhere else: this is the
+         deliberate lane, and the server refuses an enrolment without one —
+         see handleIntake. Somebody added at the window in a hurry is NOT
+         asked for a number (D-52), so the roster will carry gaps and they
+         will cluster on exactly those people. That is accepted, and it is
+         why this box exists on this form and not on the gate's.
+
+         type="text", not type="tel": tel adds nothing on a desktop keyboard
+         and some browsers volunteer autofill on it. The value is recorded
+         VERBATIM — spaces, dashes, parentheses, an extension — so what is
+         read back to the person at the window is what was typed. */}}
+    <p class="field">
+      <label class="field-label" for="phone">Phone number</label>
+      <input type="text" id="phone" name="phone" autocomplete="off" required value="{{.Form.Phone}}">
+      <small class="note">Recorded exactly as typed. It is not shown on the muster or the printed sheet.</small>
+    </p>
+
+    {{/* COMPANY. Nothing pre-selected: a <select> must display something,
+         so what it displays is the empty prompt. The same derivation the
+         gate's destination control uses — a pre-chosen company would file a
+         person under a crew nobody chose, and the muster is grouped by
+         exactly this field.
+
+         PICK, do not retype. The gate's inline path calls CreateCompany
+         unconditionally and CreateCompany does not dedup by name, so typing
+         "Kakivik" for twenty-six passengers mints twenty-six companies
+         called Kakivik and splits one crew into twenty-six muster groups —
+         every one of them below the minimum crew size, so all of them fold
+         into the flat summary bucket. This picker is what stops that. */}}
+    <p class="field">
+      <label class="field-label" for="company-id">Company</label>
+      <select id="company-id" name="company_id" required>
+        <option value=""{{if eq .Form.CompanyID ""}} selected{{end}}>— choose a company —</option>
+        {{range .Companies}}
+        <option value="{{.ID}}"{{if eq $.Form.CompanyID .ID}} selected{{end}}>{{.Name}}{{if .Headcount}} — {{.Headcount}} on the roster{{end}}{{if .Origin}} (added at {{.Origin}}){{end}}</option>
+        {{end}}
+        <option value="__new__"{{if eq .Form.CompanyID "__new__"}} selected{{end}}>— not listed: add a new company —</option>
+      </select>
+    </p>
+    {{/* This box is ALWAYS VISIBLE and is not the shared .new-fields
+         reveal, which is display:none until a script shows it. This page
+         ships no script, and a text box the operator cannot see is a text
+         box they cannot fill in. It is read only when the picker above says
+         "add a new company", so leaving it filled in from a previous
+         attempt cannot mint anything on its own. */}}
+    <p class="field" id="new-company-field">
+      <label class="field-label" for="new-company">New company name</label>
+      <input type="text" id="new-company" name="new_company" autocomplete="off" value="{{.Form.NewCompany}}">
+      <small class="note">Only used when “add a new company” is chosen above.</small>
+    </p>
+
+    {{/* TRADE. Optional — a person with no trade on file is ordinary, and
+         the muster labels that bucket "(no trade recorded)" rather than
+         losing the person.
+
+         ⚠ W8: ONE FLAT, SITE-WIDE LIST. A trade is not scoped to a company,
+         so there are no per-company <optgroup>s and no cross-company pairing
+         for the server to refuse. A person's company and a person's trade
+         are two independent defaults on their file.
+
+         ⚠ THE ADD-IT ESCAPE BELOW IS THE ONLY WAY IN FOR A TRADE THAT IS NOT
+         YET ON THE LIST, and it must stay usable with SCRIPTING OFF. The
+         shared .new-fields class is display:none until a script reveals it,
+         so a box wearing that class is invisible on exactly the path that
+         has no script — and that exact mutation once survived this page's
+         tests. #new-trade-field deliberately does NOT carry it. */}}
+    <p class="field">
+      <label class="field-label" for="trade-id">Trade <small class="note">(optional)</small></label>
+      <select id="trade-id" name="trade_id">
+        <option value=""{{if eq .Form.TradeID ""}} selected{{end}}>— none on file —</option>
+        {{range .Trades}}
+        <option value="{{.ID}}"{{if eq $.Form.TradeID .ID}} selected{{end}}>{{.Name}}{{if .Origin}} (added at {{.Origin}}){{end}}</option>
+        {{end}}
+        <option value="__new__"{{if eq .Form.TradeID "__new__"}} selected{{end}}>— not listed: add a new trade —</option>
+      </select>
+    </p>
+    <p class="field" id="new-trade-field">
+      <label class="field-label" for="new-trade">New trade name</label>
+      <input type="text" id="new-trade" name="new_trade" autocomplete="off" value="{{.Form.NewTrade}}">
+      <small class="note">Only used when “add a new trade” is chosen above.</small>
+    </p>
+
+    {{/* The same-name override appears ONLY on the refusal that needs it.
+         A permanently visible "yes, do it anyway" tick is a click-through
+         trainer, and this project has already ruled that guarding
+         everything equally is the same as guarding nothing. */}}
+    {{if .OfferSameName}}
+    <p class="field" id="same-name-field">
+      <label>
+        <input type="checkbox" name="same_name" value="1"{{if .Form.SameName}} checked{{end}}>
+        This is a <strong>different person</strong> who happens to have the same name.
+      </label>
+      <small class="note">Two people on a crew sharing a name is not unusual. Tick this only if you know
+      they are two people — if it is one person already enrolled at the other post, enrolling them again
+      puts them on the muster twice.</small>
+    </p>
+    {{end}}
+
+    <p class="actions">
+      <button type="submit" class="button-primary">{{if .HasOrientation}}Enrol this person and record {{.Post}}'s orientation{{else}}Enrol this person{{end}}</button>
+    </p>
+    {{/* ⚠ This sentence used to say the phone gap was "left visible rather than
+         filled in with a placeholder". The placeholder half is TRUE — nothing
+         fabricates a number. "Left visible" was FALSE: no surface in
+         internal/web reads Person.Phone back at all. Not the roster, muster,
+         print sheet, gate or trips; /person/amend's boxes carry no value=;
+         there is no phone column and no "no number on file" marker, and the
+         Needs-their-details queue below is derived from NeedsCompany ALONE.
+         An officer who believed the old wording would stop chasing the missing
+         numbers, because they thought a screen was tracking them — five lines
+         under a working visible-gap queue built for the OTHER gate-created gap.
+         Corrected W5 post-lock, F-2 of the operator-journey critique.
+         ⚠ Do NOT restore the visibility claim without the surface: the
+         NeedsPhone limb and the read-back are OWED, not built. */}}
+    <p><small class="note">A phone number is required here and is recorded exactly as typed. It is not asked
+    for at the window, so people added there will have none on file — that gap is real and is never filled in
+    with a placeholder, but no screen lists who is missing a number. Nothing here silently drops what you type.</small></p>
+  </form>
+</section>
+{{if and .EntranceKnown (not .IsEntrance)}}</details>{{end}}
+
+{{if .NeedsCompletion}}
+<section class="card">
+  <h2 class="section-head">Needs their details — {{len .NeedsCompletion}} {{if eq (len .NeedsCompletion) 1}}person{{else}}people{{end}}</h2>
+  <p><small class="note">Added at the window with no company on file. They are on the roster and can be
+  checked in normally, but on the muster they group under “(no company recorded)” instead of with their
+  crew. This list is worked out from the records themselves, not from a flag somebody has to remember to
+  clear.</small></p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Roster table 2 (scrolls sideways)">
+    <table id="needs-completion">
+      <thead><tr><th>Name</th><th>Enrolled at</th></tr></thead>
+      <tbody>
+      {{range .NeedsCompletion}}
+        <tr data-person-id="{{.PersonID}}"><td>{{.Display}}</td><td><code>{{sitelabel .EnrolledAt}}</code></td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{end}}
+
+<section class="card">
+  <h2 class="section-head">Everybody on the roster — {{.Total}}</h2>
+  <p><small class="note">{{.EnrolledHere}} enrolled at this post, {{.FromElsewhere}} arrived from the other post.
+  “Enrolled at” is the post that made the record; it is part of how the record replicates, so it cannot be wrong.</small></p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Roster table 3 (scrolls sideways)">
+    <table id="roster-table">
+      <thead><tr><th>Name</th><th>Company</th><th>Work group</th><th>Enrolled at</th></tr></thead>
+      <tbody>
+      {{range .People}}
+        <tr id="person-{{.PersonID}}" data-person-id="{{.PersonID}}"{{if .NeedsCompany}} data-needs-company="1"{{end}}{{if .Retired}} data-retired="1"{{end}}>
+          <td>{{.Display}}{{if .Retired}} <small class="note">retired — not offered at the gate; clear <code>retired</code> on the amend page to bring them back</small>{{end}}</td>
+          <td class="company-name">{{if .Company}}{{.Company}}{{else}}(no company recorded){{end}}</td>
+          <td class="trade-name">{{.Trade}}</td>
+          <td><code>{{sitelabel .EnrolledAt}}</code></td>
+        </tr>
+      {{end}}
+      {{if not .People}}
+        <tr><td colspan="4" class="empty">Nobody is enrolled yet.</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{{template "alert_banner" .}}
+
+{{/* NO SCRIPT ON THIS PAGE, deliberately.
+
+     The obvious enhancement is to narrow the work-group picker to the
+     chosen company. It is not built, and the reason is a rule this project
+     already holds for person lists: ORDERING, NEVER FILTERING — nobody and
+     nothing is removed from a list, because a name missing from a list is
+     how an operator concludes the system has lost something. Removing
+     options from a <select> is that failure in miniature, and the server
+     already refuses a work group belonging to a different company than the
+     one chosen (handleIntake), which is the actual guarantee. The
+     <optgroup> headings say which company each work group belongs to, on
+     paper and on screen, with or without scripting.
+
+     This also means the page is identical scripted and unscripted, so the
+     unscripted path cannot rot unnoticed — the same property the gate buys
+     the hard way by building the same markup on both paths. */}}
+{{template "page_close" .}}

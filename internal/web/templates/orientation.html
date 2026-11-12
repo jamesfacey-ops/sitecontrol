@@ -1,0 +1,136 @@
+{{template "page_open" (dict
+  "Title" (printf "Orientation — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* orientation.html — the site-orientation marking screen (SCHEMA-11
+     step 4; D-88 / D-95 / D-91). Served ONLY at a post whose own config says
+     orientation = true; a road post has no such route.
+
+     TWO LISTS, ONE FLAG. Above: everyone who holds THIS site's orientation,
+     each with a one-button retract (D-95: a mis-tick, withdrawn by the site
+     that recorded it). Below: everyone who does not, each with a checkbox
+     that is UNTICKED BY DEFAULT (D-10: a wrong tick puts someone un-oriented
+     on the pad forever; a missed tick hides nobody) — the officer affirms
+     each person individually (D-3).
+
+     A refused submission comes back as this page with the composed sentence
+     and NOTHING recorded for any of it; the officer re-ticks a clean form.
+
+     NOT THE MUSTER. Nothing here is printed, and the muster never reads
+     this flag (D-10). No <style> block, no script. */}}
+{{/* ⟦fix4 H⟧ the post's name once ⟦was: "Ice Pad orientation (Ice Pad)"⟧. */}}
+<h1>{{.Post}} orientation</h1>
+
+{{if .Refusal}}
+  <div class="notice notice-warn">{{.Refusal}}{{range .RefusalAmend}} <a href="/person/amend?person_id={{.PersonID}}">Open {{.Name}}&rsquo;s amend page</a>{{end}}</div>
+{{end}}
+{{if .InternalError}}
+  <div class="notice notice-warn">This post could not complete that.{{if .Recorded}} <strong>{{.Recorded}} completion(s) were recorded before it failed</strong> — check the lists below before re-ticking.{{else}} <strong>Nothing was recorded.</strong>{{end}} Try again, and if it repeats, radio it through.</div>
+{{end}}
+{{if .Recorded}}{{if not .InternalError}}
+  <div class="notice notice-ok">Recorded {{.Recorded}} orientation completion(s).{{if .HeldOutEntered}} <strong>{{.HeldOutEntered}} now on site</strong> — held out at the gate for lack of {{.Post}}'s orientation, and this completion entered them off the arrival that held them.{{end}}{{if .HeldOutReady}} <strong>{{.HeldOutReady}} still not on site</strong> — held out at the gate for lack of {{.Post}}'s orientation, and this completion did not carry an entry — <a href="/gate">check them in again at the gate</a>.{{end}}</div>
+{{end}}{{end}}
+{{if .Retracted}}
+  <div class="notice notice-ok">Retracted: {{.Retracted}} no longer holds {{.Post}}'s orientation.</div>
+{{end}}
+
+<p class="note">Once per person, per site, forever. A person completes {{.Post}}'s orientation <strong>here</strong>, at this site control; until they have, this site does not enter them. A tick made in error is withdrawn with <em>retract</em> — by this post only.</p>
+
+{{/* held-out (2026-09-09) — who the gate refused for lack of this post's
+     orientation and has not entered since (domain.HeldOutAt; the reader
+     half of d91-arrival-respec.md §3.4). Until this section the only trace
+     of a hold-out was the one-shot NOT ENTERED notice on the gate page,
+     gone on navigation, and trip_arrival_not_entered had no reader at all.
+
+     Same posture as the muster's exception sections, on the page D-10
+     permits: a plain statement of what this post knows, WHO / WHEN / WHY /
+     NEXT, never a warning tone (a hold-out is the rule working, not a
+     fault), and an explicit line when it knows of nobody — the F1 lesson,
+     "the sheet says what it knows, including that it knows of nobody".
+     Rows are NOT filtered by the name query above. The structural hook is
+     data-orientation-section / data-held-out-person; style with classes,
+     assert on the attributes. Still no <style>, no script; still nothing
+     printed and nothing on the muster. */}}
+<section data-orientation-section="held-out">
+<h2>Held out at the gate — waiting on {{.Post}}'s orientation <span class="count">({{len .HeldOut}})</span></h2>
+{{if .HeldOut}}
+<p>These people arrived at this post's gate and were <strong>not entered</strong>: they did not hold {{.Post}}'s orientation when they arrived. They are not on site and not on the muster. When a person here has completed the orientation, tick them below to record it. Recording it <strong>enters them here</strong> off the arrival that held them out, so do not check them in again at the <a href="/gate">gate</a> unless this page says the entry did not happen.{{/* James, 2026-10-04 (L05 LOW): was "then check them in again — recording the orientation on its own enters nobody", false since entry-on-completion (R-16, a0a5b73). */}}</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Held out at the gate (table, scrolls sideways)">
+<table class="grid">
+  <thead><tr><th>Name</th><th>Company</th><th>Trade</th><th>Held out at</th><th>Next</th></tr></thead>
+  <tbody>
+  {{range .HeldOut}}
+    <tr data-held-out-person="{{.PersonID}}">
+      <td>{{.Name}}</td>
+      <td>{{if .Company}}{{.Company}}{{else}}<span class="note">—</span>{{end}}</td>
+      <td>{{if .Trade}}{{.Trade}}{{else}}<span class="note">—</span>{{end}}</td>
+      <td>{{if .HeldOut}}{{.HeldOut}}{{else}}<span class="note">time not readable at this post</span>{{end}}</td>
+      <td>{{if .Oriented}}Orientation now recorded — <a href="/gate">check them in again at the gate</a>.{{else}}Orientation not yet recorded — tick them below once they have completed it.{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<p class="note">A person leaves this list when they are next entered at this gate. Someone held out who has not come back stays on it, with the time they were held out, until they do; held out more than once, they appear once, at the latest time.</p>
+{{else}}
+<p class="note">Nobody is waiting at the gate on {{.Post}}'s orientation.</p>
+{{end}}
+</section>
+
+<form method="get" action="/orientation">
+  <p class="field">
+    <label class="field-label" for="orientation-q">Find a name</label>
+    <input type="search" id="orientation-q" name="q" autocomplete="off" value="{{.Query}}">
+    <button type="submit">Filter</button>
+  </p>
+</form>
+
+<h2>Hold {{.Post}}'s orientation ({{len .Holding}})</h2>
+{{if .Holding}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="People holding this orientation (table, scrolls sideways)">
+<table class="grid">
+  <thead><tr><th>Name</th><th>Company</th><th>Recorded by</th><th><span class="sr-only">Action</span></th></tr></thead>
+  <tbody>
+  {{range .Holding}}
+    <tr>
+      <td>{{.Name}}{{if .CarriedFromName}} <span class="note">(carried over from merged record {{.CarriedFromName}})</span>{{end}}</td>
+      <td>{{if .Company}}{{.Company}}{{else}}<span class="note">—</span>{{end}}</td>
+      <td>{{if .RecordedBy}}{{.RecordedBy}}{{else}}<span class="note">unattributed</span>{{end}}</td>
+      <td>
+        <form method="post" action="/orientation/retract" class="inline">
+          <input type="hidden" name="person_id" value="{{.RetractID}}">
+          <button type="submit" class="secondary">Retract (mis-tick)</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<p class="note">Nobody{{if .Query}} matching “{{.Query}}”{{end}} holds {{.Post}}'s orientation yet.</p>
+{{end}}
+
+<h2>Do not yet hold it ({{len .Lacking}})</h2>
+{{if .Lacking}}
+<form method="post" action="/orientation/complete">
+<div class="table-wrap" tabindex="0" role="region" aria-label="People who do not yet hold it (table, scrolls sideways)">
+<table class="grid">
+  <thead><tr><th>Completed</th><th>Name</th><th>Company</th></tr></thead>
+  <tbody>
+  {{range .Lacking}}
+    <tr>
+      <td><input type="checkbox" name="person_id" value="{{.PersonID}}" id="orient-{{.PersonID}}"></td>
+      <td><label for="orient-{{.PersonID}}">{{.Name}}</label></td>
+      <td>{{if .Company}}{{.Company}}{{else}}<span class="note">—</span>{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+<p><button type="submit">Record the ticked completions</button> <span class="note">Nothing is ticked by default. Tick only the people who have just completed {{.Post}}'s orientation, here.</span></p>
+</form>
+{{else}}
+<p class="note">Everyone on the roster{{if .Query}} matching “{{.Query}}”{{end}} holds {{.Post}}'s orientation.</p>
+{{end}}
+{{template "page_close"}}

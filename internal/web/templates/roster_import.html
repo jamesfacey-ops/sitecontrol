@@ -1,0 +1,102 @@
+{{template "page_open" (dict
+  "Title" (printf "Import a roster — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "Data" .)}}
+{{/* roster_import.html — FIX16 H (c), roster_import.go. Three stages on one
+     page: upload (choose a CSV), preview (every row's verdict; nothing has
+     been recorded), done (how many were added). Works with scripting off:
+     the preview's commit form carries the file back in a hidden field with
+     the token over the file and the roster it was judged against. */}}
+<h1>Import a roster from a spreadsheet</h1>
+
+{{if .Error}}
+<div class="notice notice-critical" id="import-error" role="alert"><strong>NOT RECORDED.</strong> {{.Error}}</div>
+{{end}}
+
+{{if eq .Stage "upload"}}
+<section class="card">
+  <p>Add many contractors at once from a spreadsheet saved as <strong>CSV</strong> (in Excel: Save As, “CSV UTF-8”).
+  The first row must name the columns <strong>last name</strong>, <strong>first name</strong>, <strong>phone</strong>
+  and <strong>company</strong>; a <strong>trade</strong> column is optional. Other columns are ignored.</p>
+  <p>Checking the file records nothing. You will see every row first — new, possibly already on the roster,
+  retired, or missing something — and only then choose to add them.</p>
+  {{if .HasOrientation}}
+  <div class="notice notice-info" id="import-orientation-note">
+    <strong>AN IMPORT DOES NOT RECORD ANY ORIENTATION.</strong> The people it adds have not been oriented at this
+    desk, so they are held out at every orientation post — {{.Post}} included — until they are ticked on the
+    <a href="/orientation">orientation page</a>.
+  </div>
+  {{end}}
+  <form method="post" action="/roster/import/preview" enctype="multipart/form-data">
+    <p class="field">
+      <label class="field-label" for="import-file">Spreadsheet (CSV, up to 1 MB / 2,000 people)</label>
+      <input type="file" id="import-file" name="file" accept=".csv,text/csv" required>
+    </p>
+    <p><button type="submit">Check the file</button></p>
+  </form>
+</section>
+{{end}}
+
+{{if eq .Stage "preview"}}
+<section class="card">
+  <h2 class="section-head">Checked — nothing has been recorded yet</h2>
+  <ul id="import-totals">
+    <li><strong>{{.Totals.Rows}}</strong> row(s) read</li>
+    <li><strong>{{.Totals.New}}</strong> new — will be added</li>
+    <li><strong>{{.Totals.Already}}</strong> already on the roster with the same name, phone and company — not added again</li>
+    <li><strong>{{.Totals.Duplicate}}</strong> possibly already on the roster — added only if you tick “different person”</li>
+    <li><strong>{{.Totals.DupInFile}}</strong> listed twice in this file — not added</li>
+    <li><strong>{{.Totals.Retired}}</strong> retired name — not added</li>
+    <li><strong>{{.Totals.Invalid}}</strong> missing something — not added</li>
+  </ul>
+  {{if .NewCompanies}}<p>New companies that will be created: {{range $i, $c := .NewCompanies}}{{if $i}}, {{end}}<strong>{{$c}}</strong>{{end}}.</p>{{end}}
+  {{if .NewTrades}}<p>New trades that will be created: {{range $i, $t := .NewTrades}}{{if $i}}, {{end}}<strong>{{$t}}</strong>{{end}}.</p>{{end}}
+  {{if .HasOrientation}}<p class="note">No orientation is recorded by an import: tick each person on the <a href="/orientation">orientation page</a> once they have been oriented.</p>{{end}}
+
+  <form method="post" action="/roster/import/commit">
+    <input type="hidden" name="token" value="{{.Token}}">
+    <textarea name="csv" hidden aria-hidden="true">{{.CSV}}</textarea>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Import rows (scrolls sideways)">
+      <table id="import-rows">
+        <thead><tr><th>Row</th><th>Name</th><th>Phone</th><th>Company</th><th>Trade</th><th>Result</th></tr></thead>
+        <tbody>
+        {{range .Rows}}
+          <tr data-verdict="{{.Verdict}}" data-line="{{.Line}}">
+            <td>{{.Line}}</td>
+            <td>{{if .Name}}{{.Name}}{{else}}<em>(no name)</em>{{end}}</td>
+            <td>{{.Phone}}</td>
+            <td>{{.Company}}{{if .NewCompany}} <small>(new)</small>{{end}}</td>
+            <td>{{.Trade}}{{if .NewTrade}} <small>(new)</small>{{end}}</td>
+            <td>
+              {{if eq .Verdict "new"}}<strong>New</strong> — will be added
+              {{else if eq .Verdict "duplicate"}}<strong>Possibly already on the roster:</strong>
+                <ul>{{range .Candidates}}<li>{{.Name}}{{if .Company}}, {{.Company}}{{end}}{{if .Site}} — enrolled at {{.Site}}{{end}}{{if .Retired}} (RETIRED){{end}}</li>{{end}}</ul>
+                <label><input type="checkbox" name="affirm" value="{{.Line}}"{{if .Affirmed}} checked{{end}}> different person — add them</label>
+              {{else}}<strong>Not added.</strong> {{.Reason}}
+              {{end}}
+            </td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    <p><button type="submit">Add {{.Totals.New}} new person(s){{if .Totals.Duplicate}} and any ticked as different{{end}} to the roster</button>
+       <a href="/roster/import">Start again with another file</a></p>
+  </form>
+</section>
+{{end}}
+
+{{if eq .Stage "done"}}
+<section class="card">
+  {{if .CommitStoppedMsg}}
+  <div class="notice notice-critical" id="import-stopped" role="alert"><strong>STOPPED.</strong> {{.CommitStoppedMsg}}</div>
+  {{else}}
+  <div class="notice notice-ok" id="import-done"><strong>ADDED</strong> — {{.Committed}} person(s) added to the roster at {{.Post}}.
+  {{if .HasOrientation}}No orientation was recorded: tick them on the <a href="/orientation">orientation page</a> once oriented.{{end}}</div>
+  {{end}}
+  <p><a href="/roster">Back to the roster</a> · <a href="/roster/import">Import another file</a></p>
+</section>
+{{end}}
+
+<nav class="pagenav"><a href="/gate">gate</a> · <a href="/roster">roster</a> · <a href="/muster">muster</a> · <a href="/status">status page</a></nav>
+{{template "page_close" .}}

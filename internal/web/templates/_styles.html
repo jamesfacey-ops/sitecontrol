@@ -1,0 +1,2249 @@
+{{/* _styles — the ONE stylesheet for every operator page (UI brief §"Hard
+     constraints" 1 and 3). It is an INLINED shared partial, never a linked
+     /static/app.css: the page budget is <=2 round trips (gate.go:44) and the
+     box may have no link at all, so a second request for styling is a page
+     that arrives unreadable in a shack.
+
+     Rules that hold this file together:
+       - every colour is a token; NOTHING below the token blocks names a
+         literal colour, so a component can never be styled for one theme and
+         land on the other theme's ground;
+       - bare :root carries the COMPLETE light palette. The dark blocks
+         redefine tokens only. Print re-declares the light palette at high
+         enough specificity to beat both dark blocks;
+       - state is encoded in FORM as well as hue (a stripe, a weight, an
+         uppercase label) — colour-blindness is uncontrolled for here and the
+         muster is a life-safety document.
+
+     The <style> tag is deliberately attribute-free: several tests strip
+     `(?s)<style>.*?</style>` before asserting on rendered text, because a
+     class name in a stylesheet is not a rendered element. */}}
+{{define "styles"}}
+<style>
+/* ---- tokens: light (the base palette; print derives from it) ---- */
+:root {
+  color-scheme: light;
+
+  --ground: #F2F6F8;
+  --surface: #FFFFFF;
+  --surface-2: #E7EDF1;
+  --line: #C2CFD6;
+  /* --control-line: the BOUNDARY of something you operate (inputs, selects,
+     buttons, the theme switch). --line above is a hairline between rows and
+     measures 1.46:1 on the page ground — fine for a table rule, a fail for a
+     field the operator has to find (WCAG 1.4.11 wants 3:1; L14 measured the
+     light inputs at ~1.46:1). Kept separate so tables do not go heavy.
+     #6B7B84: 4.03 on --ground, 4.38 on --surface, 3.71 on --surface-2. */
+  --control-line: #6B7B84;
+  --text: #10171A;
+  --text-muted: #55646C;
+  --ice: #0D6C8B;
+  --critical: #B0241C;
+  /* M-10. #8A5600 collapsed against --critical under DEUTERANOPIA: the two
+     simulated to dE 2.34 with dL* 0.37, i.e. the OVERDUE and VERIFY-BY-RADIO
+     stripes on the busiest screen became the same mark. Light is what a
+     stock gate PC delivers (no template sets data-theme and there is no
+     theme control in the UI), so this is the theme that ships.
+     #6B4E00 separates them to dE 7.38 / dL* 6.47 deutan and dE 16.91 protan,
+     and the separation is now carried by LIGHTNESS, which survives any
+     dichromacy rather than only the one it was tuned against. Normal-vision
+     distinctness improves too (dE 39.94 -> 49.23), and contrast on the page
+     ground rises 5.66:1 -> 7.11:1. Guarded by
+     TestTheAlertHuesStaySeparableWithoutColourVision.
+     Light values are not brief-stated (UI_BRIEF.md lists the dark palette
+     only), so this is a free change; the DARK pair is not touched here. */
+  --warning: #6B4E00;
+  --ok: #17703F;
+
+  --critical-bg: #FBE9E7;
+  --warning-bg: #FDF1DC;
+  --ok-bg: #E5F4EA;
+  --ice-bg: #E2F1F7;
+  --on-ice: #FFFFFF;
+  --shadow: 0 1px 2px rgba(16, 23, 26, .12);
+
+  --font-ui: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+  --font-data: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --fs-xs: .8125rem;
+  --fs-sm: .9375rem;
+  --fs-base: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-countdown: 2.5rem;   /* U2: the operator console promotes the countdown to the
+                               headline element. Raised here rather than by a new class,
+                               per U1 carry-forward note 6. */
+
+  --sp-1: .25rem;
+  --sp-2: .5rem;
+  --sp-3: .75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
+  --radius: 3px;
+  --stripe: 6px;
+  --page-max: 72rem;
+  --page-max-narrow: 34rem;
+}
+
+/* ---- tokens: dark by system preference (primary design target).
+        Guarded so an explicit light choice still wins. Redefines TOKENS
+        ONLY — never a component rule. ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --ground: #0F1214;
+    --surface: #191E21;
+    --surface-2: #222A2E;
+    --line: #647680;
+    --control-line: #7D8F99;
+    --text: #E6EBEE;
+    --text-muted: #8A979E;
+    --ice: #5BC8E8;
+    --critical: #FF5C4D;
+    --warning: #FFB020;
+    --ok: #4ED17F;
+
+    --critical-bg: #2B1512;
+    --warning-bg: #2B2010;
+    --ok-bg: #112318;
+    --ice-bg: #0E222A;
+    --on-ice: #06222C;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5);
+  }
+}
+
+/* ---- tokens: dark by explicit choice ---- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ground: #0F1214;
+  --surface: #191E21;
+  --surface-2: #222A2E;
+  --line: #647680;
+  --control-line: #7D8F99;
+  --text: #E6EBEE;
+  --text-muted: #8A979E;
+  --ice: #5BC8E8;
+  --critical: #FF5C4D;
+  --warning: #FFB020;
+  --ok: #4ED17F;
+
+  --critical-bg: #2B1512;
+  --warning-bg: #2B2010;
+  --ok-bg: #112318;
+  --ice-bg: #0E222A;
+  --on-ice: #06222C;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5);
+}
+
+/* ---- base elements ---- */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.45;
+}
+
+h1, h2, h3 { font-weight: 650; line-height: 1.2; }
+h1 { font-size: var(--fs-xl); margin: 0 0 var(--sp-4); }
+h1 small { color: var(--text-muted); font-family: var(--font-data); font-size: var(--fs-sm); font-weight: 500; }
+h2 { font-size: var(--fs-lg); margin: var(--sp-6) 0 var(--sp-2); }
+h3 { font-size: var(--fs-base); margin: var(--sp-4) 0 var(--sp-1); color: var(--text); }
+
+a { color: var(--ice); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 2px;
+}
+
+p { margin: var(--sp-2) 0; }
+em { color: var(--text-muted); font-style: italic; }
+
+code, .mono, .countdown { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+code {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 0 .25em;
+  font-size: .95em;
+}
+
+/* Countdowns are the largest numerals on the page: the value somebody
+   scanning the room reads from their chair. */
+.countdown { font-size: var(--fs-countdown); font-weight: 650; line-height: 1.1; display: inline-block; }
+
+small.note, .note {
+  color: var(--text-muted);
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  max-width: 64ch;
+}
+
+/* ---- layout ---- */
+.page {
+  display: block;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4) var(--sp-6);
+}
+.page.narrow { max-width: var(--page-max-narrow); padding-top: var(--sp-6); }
+
+/* A jump to an anchored section (the gate's warning notice, linked from the
+   muster) must land clear of the sticky bar. Deliberately generic: a
+   notice-specific selector would put that notice's class name into every
+   page's stylesheet, which A4's quiet-page test forbids. */
+main section[id] { scroll-margin-top: min(14rem, 35vh); }
+
+/* ---- THE SHARED BOX (James, 2026-10-03: "the boxes on the top are all
+        different formatting and heights — can we standardise that please?").
+        Every box at the top of a post page — the top-bar chips, the alert
+        rows, notices, the analytics tiles, the
+        muster mode box, the sync peer boxes — is selected by this one rule
+        (".box" plus the legacy class that names its role — the markup keeps
+        the legacy names only, since tests match those attribute strings). Geometry lives here and ONLY here:
+        border, stripe, radius, padding, font size, title style. The legacy
+        class names (chip, notice, an-tile, mode-*, peer) stay on
+        the markup because tests and the print block address them, but they
+        carry only layout (display, margin) and map their severity names onto
+        the two tokens below (box-ok / box-warn / box-crit / box-ice / box-fault
+        may also be used directly), so a warning is still amber and an alert is
+        still red — the SAME shape in a different colour, never a different
+        shape. Equal heights in a row come from the rows (stretch / 1fr), not
+        from fixed heights, so a box never clips its text. ---- */
+.box, .chip, .notice, .an-tile, .mode-live, .mode-reprint, .mode-snapshot, .peer {
+  --box-c: var(--line);
+  --box-bg: var(--surface);
+  box-sizing: border-box;
+  background: var(--box-bg);
+  border: 1px solid var(--box-c);
+  border-left: var(--stripe) solid var(--box-c);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-base);
+  max-width: 100%;
+}
+/* Order matters: ice, then ok, then warn, then crit, so a more severe
+   modifier on the same element (an-tile + an-tile-crit) wins. */
+.box-ice, .chip-ice, .notice-info, .an-tile, .mode-snapshot { --box-c: var(--ice); --box-bg: var(--ice-bg); }
+.box-ok, .chip-ok, .notice-ok, .peer-ok, .mode-live { --box-c: var(--ok); --box-bg: var(--ok-bg); }
+.box-warn, .chip-warn, .notice-warn, .an-tile-warn, .mode-reprint { --box-c: var(--warning); --box-bg: var(--warning-bg); }
+.box-crit, .chip-crit, .notice-critical, .notice-crit, .an-tile-crit, .peer-bad { --box-c: var(--critical); --box-bg: var(--critical-bg); }
+/* A fault in the machinery that is supposed to be watching — the same box,
+   dashed, so it is not mistaken for one more ordinary red row. */
+.box-fault, .notice-fault {
+  --box-c: var(--critical); --box-bg: var(--critical-bg);
+  border-style: dashed;
+  border-width: 2px;
+}
+/* One title style for the label that heads a box. */
+.box .chip-label, .box .an-label {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* ---- top bar: site, sync, recording post, and the alert surface.
+        Sticky, because an alert that requires scrolling is an alert that
+        gets missed. ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.topbar-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;   /* chips (and the theme switch) share one height per row */
+  gap: var(--sp-2) var(--sp-4);
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--sp-2) var(--sp-4);
+}
+.topbar-alerts {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--sp-4);
+}
+.topbar-alerts:empty { display: none; }
+/* FIX13 (James, 2026-10-05): the strip is two compact lines — red OVERDUE,
+   amber VERIFY BY RADIO — each "TRK-19 (3) · GRADER-7 (1) · +3 more", the
+   vehicle id then its people aboard (banner.html alert_strip). A line wraps,
+   it never scrolls or clips; banner.html caps it at 6 items (3 on a phone),
+   which is what bounds the bar. Same box, stripe and weighted label as every
+   notice, so the kind reads without hue. ⟦was (V-01): .alert-count, the
+   count sentence under the strip's one full alert row⟧ */
+.topbar-alerts .alert-line { margin: var(--sp-1) 0 var(--sp-2); padding-block: var(--sp-1); line-height: 1.5; }
+.alert-line-kind { letter-spacing: .04em; white-space: nowrap; margin-right: var(--sp-1); }
+/* Inline text flow, not flex: the label and the first items share line 1
+   and the list wraps like a sentence, with breaks only between items. */
+.alert-items, .alert-items li { display: inline; margin: 0; padding: 0; list-style: none; }
+/* The separator is generated (not read aloud) and its trailing space is the
+   only break opportunity between items, so a wrapped line ends on a dot and
+   the next starts with a vehicle id. */
+.alert-items li + li::before { content: "\00B7 " / ""; margin-left: .45em; }
+.alert-items li > a, .alert-items li > .alert-item-text { white-space: nowrap; }
+.alert-items code { font-weight: 700; }
+.alert-items a { color: inherit; text-underline-offset: 2px; }
+.alert-items .alert-more-phone { display: none; }
+/* FIX15 (James, 2026-10-06): the LOST SIGNAL line (banner.html lost_signal)
+   — the same compact line, dashed like the other machinery fault so it is
+   not read as one more overdue vehicle. Its items may wrap inside
+   themselves (a long site name and its last-heard time must not run past a
+   320 px screen); on a phone each item shrinks to "NPF 14:32". A page with
+   no alert strip carries the line in its own .topbar-signal box, laid out
+   like .topbar-alerts and hidden while empty. */
+.lost-signal .alert-items li > span { white-space: normal; }
+.lost-signal .lost-phone { display: none; }
+.topbar-signal { max-width: var(--page-max); margin: 0 auto; padding: 0 var(--sp-4); }
+.topbar-signal:empty { display: none; }
+.topbar-signal .alert-line { margin: var(--sp-1) 0 var(--sp-2); padding-block: var(--sp-1); line-height: 1.5; }
+/* The row an item links to, on /trips: marked, not just scrolled to. */
+.notice[id^="alert-"]:target { outline: 3px solid var(--ice); outline-offset: 2px; }
+.topbar-site { align-self: center; display: flex; align-items: baseline; gap: var(--sp-2); margin-right: auto; }
+.topbar-site .site-id {
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: var(--fs-base);
+  letter-spacing: .02em;
+  border-left: var(--stripe) solid var(--ice);
+  padding-left: var(--sp-2);
+}
+.topbar-site .site-name { color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* chip: one top-bar fact. The label prints in every state, so a chip is
+   readable with hue ignored entirely. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.chip .chip-label { white-space: nowrap; }
+.chip .chip-value { font-weight: 650; }
+.chip form { display: inline; margin: 0; }
+/* ⟦R-28⟧ the header's small switch-mode link (_topbar.html) — same chip
+   shell as every other slot on this bar, just a link instead of a fact. */
+.chip-mode a { font-weight: 650; }
+
+/* FIX10: the Home button (_topbar.html). Fixed 44 px minimum both ways so it
+   never shifts layout, same control tokens as the theme switch (text on
+   surface-2 passes AA in both themes), a heavier ice border so it reads as
+   the primary way back. */
+.home-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box; min-width: 2.75rem; min-height: 2.75rem;
+  border: 2px solid var(--ice); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-sm); font-weight: 700;
+  text-decoration: none; white-space: nowrap;
+  align-self: flex-start; /* top of the strip whatever the chips' height, so y is the same on every page */
+}
+.home-btn:hover { text-decoration: underline; }
+.home-btn[aria-current="page"] { background: var(--ice-bg); }
+
+/* ---- theme switch: one quiet control, always the last thing in the top
+   bar strip (_topbar.html), on every page (topic added 2026-09-29, James:
+   "a simple switch on the top of the page please"). No icon — this app
+   has never used one anywhere else, and an emoji glyph is a font-coverage
+   gamble on the exact cheap gate-PC monitor UI_BRIEF.md is written for.
+   TEXT ONLY, same as every other control here.
+
+   The markup is IDENTICAL on every render: two links, "Switch to dark" and
+   "Switch to light", and exactly ONE is displayed — the one naming the
+   theme the page is not showing. Which one is decided here, under the
+   exact same three-selector guard (bare default / prefers-dark guarded /
+   explicit data-theme) as the token blocks above, so the switch can never
+   offer the theme the page is already in. theme.go has the other half
+   (the cookie the [data-theme] attribute comes from, and why a plain
+   server-set cookie does not trip UI_BRIEF.md constraint 4 the way a
+   browser-side store would). display:none also takes the hidden link out of the
+   tab order and the accessibility tree, so a keyboard or screen-reader
+   user meets one control, not two. */
+.theme-switch { display: inline-flex; align-items: stretch; margin-left: auto; /* W8: right edge on every page, even when wrapped to its own row (amend-page bar parity) */ }
+.theme-switch a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem; /* W8 M-22: 44px touch target (was 2.25rem) */
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.theme-switch a:hover { border-color: var(--ice); text-decoration: underline; }
+.theme-switch .theme-switch-to-light { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-switch .theme-switch-to-dark { display: none; }
+  :root:not([data-theme="light"]) .theme-switch .theme-switch-to-light { display: inline-flex; }
+}
+:root[data-theme="dark"] .theme-switch .theme-switch-to-dark { display: none; }
+:root[data-theme="dark"] .theme-switch .theme-switch-to-light { display: inline-flex; }
+
+/* ---- cards / panels ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-4) 0;
+}
+
+/* ---- notices: severity carried by a stripe AND a weighted label, never
+        by hue alone ---- */
+.notice { margin: var(--sp-2) 0; }
+.notice strong { font-weight: 700; }
+.notice form { display: inline; margin-left: var(--sp-2); }
+.notice .note { color: var(--text-muted); }
+
+/* ---- tables. Wide ones live inside .table-wrap so the page body never
+        scrolls sideways. ---- */
+.table-wrap { overflow-x: auto; margin: var(--sp-2) 0; position: relative; /* contains .sr-only cells (W8 A-04) */ }
+table { border-collapse: collapse; width: 100%; }
+td, th {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  border-bottom: 1px solid var(--line);
+}
+th {
+  color: var(--text-muted);
+  font-weight: 650;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+tbody tr:hover td { background: var(--surface-2); }
+table.plain td, table.plain th { border-bottom: none; }
+table.plain th { text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); }
+
+/* ---- buttons ---- */
+button, .button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 2.75rem; /* W8 M-22: 44px touch target (was 2.25rem) */
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+button:hover, .button:hover { border-color: var(--ice); }
+button[type=submit] { border-left: var(--stripe) solid var(--ice); }
+.button-primary {
+  background: var(--ice);
+  color: var(--on-ice);
+  border-color: var(--ice);
+}
+form.inline { display: inline; }
+/* ⟦R-28, team-lead, 2026-09-16⟧ the login page's mode choice — "two big
+   choices", so bigger than the ordinary "Log in" button this replaces at
+   a vehicle-mode-enabled site, not the same size stacked. */
+.login-mode-choice { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.login-mode-choice button {
+  flex: 1 1 16rem; min-height: 4rem; font-size: var(--fs-xl); font-weight: 650;
+}
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 6: the password box sized
+   to match the two big buttons below it (≥44px tall, same width as the
+   button row), so the login page reads as one consistently-scaled control
+   group rather than a small field over big buttons. */
+.login-password { display: block; width: 100%; max-width: 100%; min-height: 3rem; font-size: var(--fs-lg); }
+
+/* ---- form controls: sized for gloves ---- */
+fieldset {
+  min-width: 0; /* W8 M-20: a fieldset's default min-width is min-content and widened /gate/vehicle past 320px */
+  margin: var(--sp-4) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+}
+legend { color: var(--text-muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; }
+label { display: inline-block; max-width: 100%; }
+input, select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  padding: var(--sp-2);
+  min-height: 2.75rem; /* W8 M-22: 44px touch target (was 2.25rem) */
+  max-width: 100%;
+}
+input[type=checkbox] { min-height: 0; width: 1.1rem; height: 1.1rem; vertical-align: middle; }
+select[multiple] { min-height: 0; }
+
+/* ---- links row at the foot of a page ---- */
+.pagenav { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-sm); }
+/* FIX16c: the gate pages' "Keyboard shortcuts" help (_gatekeys.html) —
+   small, under the links row, closed by default. */
+.gate-keys { margin-top: var(--sp-2); font-size: var(--fs-sm); }
+.gate-keys > summary { cursor: pointer; min-height: 2.75rem; display: inline-flex; align-items: center; }
+.gate-keys-list { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-1) var(--sp-3); margin: var(--sp-2) 0; }
+.gate-keys-list dd { margin: 0; }
+
+/* ---- records search (search.html, FIX9). The filters are a wrapping grid:
+        one column on a phone, as many 12rem columns as fit above. Results
+        are ordinary tables in .table-wrap. A row the trips-detail or roster
+        link lands on (#trip-…, #person-…) is marked while it is the target. ---- */
+.search-form .search-q input { width: 100%; box-sizing: border-box; }
+.search-grid { display: grid; gap: 0 var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+.search-grid .field input { width: 100%; box-sizing: border-box; }
+.search-grid .field-label { display: block; margin-top: var(--sp-2); }
+.search-results { min-width: 44rem; } /* scrolls inside .table-wrap on a phone rather than breaking names mid-word */
+.search-results code { white-space: nowrap; }
+.search-hand { font-weight: 650; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; }
+.search-phone { font-family: var(--font-data); white-space: nowrap; }
+tr:target td { background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--ice); }
+/* FIX12: the "Narrow results" panel. A <details> on every width (so a phone
+   gets it collapsed under "Filter results"); from 60rem it sits beside the
+   results as a sidebar and the page script opens it. Each option is a full
+   44px row with its label as the tap target; the chips are plain links. */
+.search-grid .field select { width: 100%; box-sizing: border-box; }
+.search-layout { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); align-items: start; }
+.search-layout > * { min-width: 0; }
+@media (min-width: 60rem) { .search-layout { grid-template-columns: 16rem minmax(0, 1fr); } }
+.search-narrow { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.search-narrow > summary { cursor: pointer; font-weight: 650; padding: var(--sp-2) var(--sp-3); min-height: 2.75rem; box-sizing: border-box; display: flex; align-items: center; }
+.search-narrow > summary::before { content: "▸"; margin-right: var(--sp-2); }
+.search-narrow[open] > summary::before { content: "▾"; }
+.search-narrow > summary::-webkit-details-marker { display: none; }
+.search-narrow > summary { list-style: none; }
+.search-narrow > summary:focus-visible, .search-more > summary:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+.search-narrow-form { padding: 0 var(--sp-3) var(--sp-3); }
+.search-narrow-form fieldset { margin: var(--sp-3) 0; padding: var(--sp-2) var(--sp-3); }
+.search-narrow-form fieldset.search-subset { margin: var(--sp-2) 0; border-style: dashed; }
+.search-opt { margin: 0; display: flex; align-items: center; gap: var(--sp-2); }
+.search-opt input[type=checkbox] { flex: none; margin: 0; }
+.search-opt label { flex: 1; min-height: 2.75rem; display: flex; align-items: center; cursor: pointer; overflow-wrap: anywhere; }
+.search-n { color: var(--text-muted); font-family: var(--font-data); margin-left: .35em; white-space: nowrap; }
+.search-more > summary { cursor: pointer; min-height: 2.75rem; display: flex; align-items: center; color: var(--ice); text-decoration: underline; }
+.search-chip-list { list-style: none; margin: var(--sp-2) 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.search-chip { display: inline-flex; align-items: center; gap: .4em; min-height: 2.75rem; box-sizing: border-box; padding: 0 var(--sp-3);
+  border: 1px solid var(--ice); border-radius: 1.4rem; background: var(--ice-bg); color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+.search-chip:hover { text-decoration: underline; }
+.search-chip:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+#results:focus { outline: none; }
+#results:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+
+/* ---- dispatch analytics (analytics.html): tiles + per-site cards. Severity
+        is carried by a stripe and a word ("STALE — LAST KNOWN"), never by hue
+        alone; the stale card is dashed and dimmed so it cannot pass for a
+        current one. One column on a phone, auto-fit grid above. ---- */
+.an-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); grid-auto-rows: 1fr; margin: var(--sp-3) 0; }
+.an-num { font-family: var(--font-data); font-size: var(--fs-countdown); font-weight: 700; line-height: 1.1; }
+.an-num small { font-size: var(--fs-xl); font-weight: 400; color: var(--text-muted); }
+.an-label { font-size: var(--fs-lg); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.an-sub { font-size: var(--fs-xs); color: var(--text-muted); margin-top: var(--sp-1); }
+.an-site h3 { margin: 0 0 var(--sp-2); display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: baseline; }
+.an-flag { font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; padding: 0 var(--sp-2); border: 1px solid var(--warning); border-radius: var(--radius); background: var(--warning-bg); color: var(--warning); }
+.an-flag-ok { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.an-fresh { font-size: var(--fs-sm); color: var(--text-muted); margin: 0 0 var(--sp-3); }
+.an-figs { display: grid; grid-template-columns: 1fr auto; gap: var(--sp-1) var(--sp-3); margin: 0; }
+.an-figs dt { color: var(--text-muted); font-size: var(--fs-sm); }
+.an-figs dd { margin: 0; font-family: var(--font-data); text-align: right; }
+.an-big { font-size: var(--fs-xl); font-weight: 700; }
+.an-stale { border-style: dashed; border-left: var(--stripe) dashed var(--warning); background: var(--warning-bg); }
+.an-stale .an-figs dd { color: var(--text-muted); }
+
+/* ---- dispatch analytics: FILL THE SCREEN (James, 2026-10-03: "the display
+        screen on the dispatch page needs to auto resize to the current
+        screen size"). /analytics and its per-site detail open their content
+        column with Main="an-page". Pure CSS, so it holds with scripting off:
+          - no 72rem cap: the column spans the viewport at every width, with a
+            gutter that grows with it (no tiny centred column on a wall TV);
+          - the type tokens are RE-SCOPED here and nowhere else, as clamp()s
+            on the viewport width: each one equals its global value on a phone
+            and grows to ~2x by 1920 px and ~3x by 3840 px, so a wall screen
+            reads from across the room. Every an-* rule already sizes through
+            these tokens, so they all scale together;
+          - grid tracks are sized in em, so card width tracks the text it
+            holds and the grids reflow by width (one column on a phone, five
+            site cards across a 4K screen) with min(100%, ...) so no track can
+            ever be wider than the screen — no horizontal scroll at 360 px.
+        The top bar is widened to match with :has(); a browser without :has()
+        keeps the ordinary centred bar, nothing breaks. ---- */
+.page.an-page, body:has(main.an-page) {
+  --fs-xs: clamp(.8125rem, .5rem + .5vw, 2rem);
+  --fs-sm: clamp(.9375rem, .58rem + .55vw, 2.2rem);
+  --fs-base: clamp(1rem, .62rem + .6vw, 2.4rem);
+  --fs-lg: clamp(1.125rem, .68rem + .7vw, 2.7rem);
+  --fs-xl: clamp(1.375rem, .8rem + .9vw, 3.4rem);
+  --fs-countdown: clamp(2.25rem, 1.1rem + 2.8vw, 8rem);
+  font-size: var(--fs-base);
+}
+/* (the tokens above are scoped to the whole body where :has() exists, so the
+   top bar and its alert strip scale with the page on a wall screen) */
+.page.an-page { max-width: none; padding-inline: clamp(var(--sp-4), 2.5vw, 5rem); }
+body:has(main.an-page) .topbar-strip,
+body:has(main.an-page) .topbar-alerts { max-width: none; padding-inline: clamp(var(--sp-4), 2.5vw, 5rem); }
+body:has(main.an-page) .topbar-signal { max-width: none; padding-inline: clamp(var(--sp-4), 2.5vw, 5rem); }
+.an-page .note, .an-page small.note { max-width: 80ch; }
+.an-page .an-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13em), 1fr)); gap: clamp(var(--sp-3), 1vw, 2.5rem); }
+.an-page .an-grid.an-sites { grid-template-columns: repeat(auto-fit, minmax(min(100%, 20em), 1fr)); }
+.an-page .an-tile, .an-page .card { min-width: 0; padding: .75em 1em; }
+.an-page .an-figs { grid-template-columns: minmax(min(9em, 50%), 1fr) minmax(0, auto); }
+.an-page .an-figs dd { overflow-wrap: anywhere; }
+.an-page h1, .an-page h3, .an-page p, .an-page li { overflow-wrap: anywhere; }
+/* FIX15: the Signal tile's per-site list — one site per line, the state
+   word first and weighted, so LOST reads without hue. */
+.an-signal { list-style: none; margin: var(--sp-1) 0; padding: 0; font-size: var(--fs-sm); }
+.an-signal li { margin: 2px 0; }
+.an-signal-state { display: inline-block; min-width: 4.5ch; }
+.an-site-link { color: inherit; text-decoration-thickness: 2px; text-underline-offset: .15em; }
+.an-site-link:hover { color: var(--ice); }
+.an-crumb { font-size: var(--fs-sm); font-weight: 500; }
+/* FIX16 E: the dispatch reports (dispatch_reports.html). Tokens only, so both
+   themes hold; the chart is inline SVG coloured from the same tokens. */
+.rp-page .rp-form { margin-block: var(--sp-3); }
+.rp-page .rp-form h2 { margin-top: 0; }
+.rp-page .rp-form form { align-items: end; }
+.rp-page .rp-form .actions { margin-top: var(--sp-3); }
+.rp-figures { max-width: 60rem; }
+.rp-figures td:first-of-type, .rp-hours td { font-variant-numeric: tabular-nums; }
+.rp-figures td:first-of-type { font-weight: 700; text-align: right; padding-right: var(--sp-3); }
+.rp-table th[scope=row] { font-weight: 600; text-transform: none; letter-spacing: 0; }
+.rp-company th, .rp-company td { background: var(--surface-2); font-weight: 700; }
+.rp-person { padding-left: var(--sp-4); font-weight: 400 !important; }
+.rp-total { font-size: var(--fs-lg, 1.15rem); }
+.rp-chart { margin: var(--sp-3) 0; }
+.rp-svg { display: block; max-width: none; }
+.rp-bar { fill: var(--ice); }
+.rp-grid, .rp-day { stroke: var(--line); stroke-width: 1; }
+.rp-base { stroke: var(--text-muted); stroke-width: 1; }
+.rp-axis { fill: var(--text-muted); font-size: 11px; font-family: var(--font-data, inherit); }
+.an-site-name { color: var(--text-muted); font-weight: 500; }
+/* The detail view: two reading columns (on site | on the road) that stack on
+   a phone. A run's state is a WORD in a box plus a stripe weight, never hue
+   alone; the stale page is dashed like the stale card it came from. */
+.an-cols { display: grid; gap: clamp(var(--sp-4), 2vw, 4rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 24em), 1fr)); align-items: start; }
+.an-col { min-width: 0; }
+.an-page .names { columns: auto 14em; }
+.an-trade { margin: var(--sp-2) 0 0; font-weight: 650; color: var(--text-muted); }
+.an-run { background: var(--surface); border: 1px solid var(--line); border-left: var(--stripe) solid var(--ice); border-radius: var(--radius); padding: .6em .9em; margin: 0 0 var(--sp-3); box-shadow: var(--shadow); min-width: 0; }
+.an-run-head { margin: 0; font-weight: 650; display: flex; flex-wrap: wrap; gap: .3em .6em; align-items: baseline; }
+.an-run .an-sub { margin: .2em 0; }
+.an-urgency { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em; padding: 0 .4em; border: 1px solid currentColor; border-radius: var(--radius); }
+.an-run-overdue { border-left-width: calc(var(--stripe) * 2); border-left-color: var(--critical); background: var(--critical-bg); }
+.an-run-overdue .an-urgency { color: var(--critical); }
+.an-run-unresolved, .an-run-stale, .an-run-past { border-left-color: var(--warning); background: var(--warning-bg); }
+.an-run-unresolved .an-urgency, .an-run-stale .an-urgency, .an-run-past .an-urgency { color: var(--warning); }
+.an-run-unknown, .an-run-none { border-left-style: dashed; border-left-color: var(--line); }
+.an-stale-page .an-run, .an-stale-page .an-tile { border-style: dashed; }
+/* FIX16: a late run's response essentials (analytics_site.html an_run),
+   and the "Download CSV" links (search.html, reports.html). Text wraps —
+   nothing here has a width, so it fits a 320 px screen. */
+.an-essentials { margin: .3em 0; display: flex; flex-wrap: wrap; gap: .1em 1.2em; }
+.an-essentials > div { display: flex; gap: .4em; min-width: 0; }
+.an-essentials dt { font-weight: 650; }
+.an-essentials dd { margin: 0; overflow-wrap: anywhere; }
+.an-page .an-contacts { columns: auto; }
+.an-contact { font-size: var(--fs-xs); color: var(--text); overflow-wrap: anywhere; }
+.an-phone { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.csv-link { margin: var(--sp-1) 0; }
+.report-summary { padding-left: 1.2em; overflow-wrap: anywhere; }
+/* FIX16f: the history reports (history_*.html). The tab row and counts
+   wrap; every table lives in .table-wrap, so nothing is wider than a
+   320 px screen. Colour is never the only cue: REPEAT and "still open"
+   are words too. */
+.history-tabs ul, .history-counts { list-style: none; padding: 0; margin: var(--sp-2) 0; display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+.history-tabs a { display: inline-flex; align-items: center; min-height: 2.75rem; padding-inline: var(--sp-2); }
+.history-tabs a[aria-current="page"] { font-weight: 700; border-bottom: 3px solid var(--ice); text-decoration: none; color: var(--text); }
+.history-table th[scope="row"] { text-align: left; font-weight: 600; }
+.history-flag { font-size: var(--fs-xs); font-weight: 700; padding: 0 var(--sp-1); border: 1px solid var(--critical); border-radius: var(--radius); background: var(--critical-bg); color: var(--critical); white-space: nowrap; }
+.history-repeat th[scope="row"], .history-open td strong { color: var(--critical); }
+.history-withdrawn { text-decoration: line-through; color: var(--text-muted); }
+
+/* ---- gate: roster autocomplete ---- */
+.field { position: relative; margin: var(--sp-2) 0; }
+.field > input[type=text] { width: 100%; }
+.autocomplete-list {
+  position: absolute; z-index: 30; background: var(--surface); border: 1px solid var(--line);
+  width: 100%; max-height: 10rem; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: none;
+  box-shadow: var(--shadow);
+}
+.autocomplete-list li { padding: var(--sp-1) var(--sp-2); cursor: pointer; min-height: 44px; }
+.autocomplete-list li:hover { background: var(--surface-2); }
+/* ⟦M-24, W3 2026-10-03⟧ the keyboard's current option (ArrowUp/Down) — same
+   surface as hover plus an outline, so the state is not carried by hue alone. */
+.autocomplete-list li[aria-selected="true"] { background: var(--surface-2); outline: 2px solid var(--ice); outline-offset: -2px; }
+/* Already on this vehicle: SHOWN and MARKED, never hidden. A name missing
+   from the list is how an operator concludes the system lost somebody. */
+.autocomplete-list li.already-added { color: var(--text-muted); cursor: not-allowed; }
+.new-fields { margin-top: var(--sp-1); padding-left: var(--sp-2); border-left: var(--stripe) solid var(--warning); display: none; }
+.new-fields.show { display: block; }
+
+/* ---- gate: the one-vehicle-many-passengers form ----
+
+   THE OPEN BOX NEVER MOVES. It sits above the accumulated list, so adding
+   the 26th passenger costs the same screen position as adding the 1st, and
+   the list grows downward out of the way. The commit sits below all of it,
+   which makes reaching it a review step enforced by layout. */
+.open-box {
+  border: 1px solid var(--line); border-left: var(--stripe) solid var(--ice);
+  border-radius: var(--radius); padding: var(--sp-3); background: var(--surface-2);
+}
+.open-box > input[type=text] { width: 100%; }
+/* THE ADOPT CONFIRM (gate.html, the open box): the ask before a roster row
+   is adopted. Styled as the passenger row's duplicate offer is — a warning
+   stripe, buttons rather than links so the answer is one press with gloves
+   on — so an officer meets ONE shape of ask on the whole screen. */
+.adopt-confirm { margin-top: var(--sp-2); padding: var(--sp-2); border-left: var(--stripe) solid var(--warning); background: var(--warning-bg); font-size: var(--fs-sm); }
+.adopt-confirm p { margin: var(--sp-1) 0; }
+.adopt-confirm .adopt-who { font-size: var(--fs-base); font-weight: 700; }
+.adopt-confirm .adopt-actions button { display: inline-block; margin: var(--sp-1) var(--sp-1) 0 0; }
+.add-hint { color: var(--warning); font-weight: 600; margin: var(--sp-2) 0 0; }
+.passenger-list { margin: var(--sp-2) 0; }
+.passenger-list-empty { color: var(--text-muted); }
+.passenger-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2); border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.passenger-row:hover { background: var(--surface-2); }
+.passenger-fields { position: relative; flex: 1 1 22rem; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.passenger-fields .p-typed { flex: 2 1 12rem; }
+/* ⟦FIX8 option C⟧ each row's own Time in / Time out. min-width:0 down the
+   chain so a datetime-local box (~286 px of min-content) shrinks inside a
+   320 px screen instead of widening the row past it. */
+.passenger-fields { min-width: 0; }
+.passenger-fields .p-time-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); flex: 1 1 14rem; min-width: 0; max-width: 100%; }
+.passenger-fields .p-time-word { font-size: var(--fs-sm); color: var(--text-muted); }
+.passenger-fields .p-time { flex: 1 1 12rem; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.passenger-fields .p-typed { min-width: 0; max-width: 100%; box-sizing: border-box; }
+fieldset.group-driver { min-width: 0; max-width: 100%; }
+/* D-84: the row SHOWS a known person's company and trade (.p-org-label) and
+   keeps the change controls behind a shut <details>. A shut details renders
+   nothing of its contents and puts none of them in the tab order — on a bus
+   of twelve the officer tabs past twelve labels, not twenty-four boxes. */
+.passenger-org { display: flex; flex-direction: column; gap: var(--sp-1); flex: 1 1 14rem; min-width: 0; }
+.p-org-label { font-size: var(--fs-sm); color: var(--text-muted); }
+.org-change > summary { font-size: var(--fs-xs); }
+.org-change[open] { padding: var(--sp-2); border-left: var(--stripe) solid var(--warning); background: var(--surface-2); }
+.org-change label { display: block; margin: var(--sp-1) 0; font-size: var(--fs-sm); }
+.org-change select, .org-change input[type=text] { width: 100%; min-width: 0; }
+.org-change .new-name { color: var(--text-muted); }
+.org-change .amend-confirm { display: flex; align-items: flex-start; gap: var(--sp-2); font-weight: 600; color: var(--text); }
+.org-change .amend-confirm input { flex: 0 0 auto; margin-top: .15rem; }
+/* The duplicate OFFER on a new passenger row (person_match.go): an ask,
+   never a pre-pick. Buttons rather than links, so the pick is one press with
+   gloves on; full-width under the row so the list itself never shifts. */
+.dup-candidates { flex: 1 1 100%; font-size: var(--fs-sm); padding: var(--sp-2); border-left: var(--stripe) solid var(--warning); background: var(--warning-bg); }
+.dup-candidates .p-pick { display: inline-block; margin: var(--sp-1) var(--sp-1) 0 0; }
+/* THE DRIVER FLAG. It is a radio because a radio group with nothing
+   `checked` has NO browser-supplied default — the property that makes a
+   pre-selected driver impossible. Sized like the other consequential
+   controls on this page (44px), never smaller: the risk is mis-SELECTION,
+   and shrinking the target only makes mis-AIM worse in gloves at -30. */
+.driver-flag {
+  display: flex; align-items: center; gap: var(--sp-1);
+  min-height: 44px; padding: 0 var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted); white-space: nowrap;
+}
+.driver-flag input { width: 1.3rem; height: 1.3rem; }
+.driver-flag:has(input:checked) { color: var(--text); border-color: var(--ice); border-left: var(--stripe) solid var(--ice); }
+.undo-row { color: var(--text-muted); }
+.driver-cleared { font-weight: 600; }
+/* THE COMMIT. Separated from "Add person" by the whole passenger list, a
+   heavy rule, and whitespace — not by being small. */
+.commit-block {
+  margin-top: var(--sp-5); padding-top: var(--sp-4);
+  border-top: var(--stripe) solid var(--line);
+}
+.commit-block .gate-commit { font-size: var(--fs-lg); padding: var(--sp-3) var(--sp-4); min-height: 3rem; }
+.commit-block .gate-commit[disabled] { opacity: .55; cursor: not-allowed; }
+.commit-note { margin: var(--sp-2) 0 0; }
+.commit-blocked { color: var(--warning); font-weight: 600; margin: var(--sp-1) 0 0; }
+
+/* ---- trips ---- */
+.closed td { color: var(--text-muted); }
+/* V-09. This control is what keeps a NAMED PERSON OFF THE ON-SITE ROSTER:
+   ticking it says "this person did not come in on this vehicle". It
+   measured 423.7 x 23.6 px on a 27.6 px pitch with 4 px between one
+   person's row and the next, while `label.picker-row` — the control that
+   only ever ADDS people, whose worst mis-tick over-reports the muster —
+   measured 1106 x 41.4 px, full width, rows abutting.
+
+   The sizing was inverted against consequence, and it is worse than a
+   general ergonomics point because the mitigation is JS-only: the
+   consolidated "NOT checking in N — they will not be on the muster"
+   confirm is built by _picker.html's script. With scripting off the form
+   still submits and there is NO confirmation at all, so a 4 px mis-hit on
+   a 23.6 px target silently leaves a person off the roster on exactly the
+   contract-mandated path where nothing catches it. 23.6 px is also below
+   the 24 px floor WCAG 2.5.8 sets for ORDINARY INDOOR pointing, before
+   gloves.
+
+   It gets `.picker-row`'s treatment — but by MIRRORING ITS DECLARATIONS,
+   never by taking its class. picker_test.go's pickerRowRe matches the
+   literal `<label class="picker-row">`, so a stayed row wearing that class
+   would RESEMBLE an asserted picker row without being one, and would make
+   a surface that is deliberately NOT a picker appear to inherit the
+   picker's structural no-`checked` protection. The return manifest is not
+   a picker; that ruling is load-bearing.
+
+   HEIGHT: the 44 px comes out of spacing this control already had, not out
+   of the page. The old `margin: var(--sp-1) 0` (4 px above and below every
+   row) is redistributed into padding, and the gap between rows becomes a
+   1 px rule instead of 8 px of air — so the rows read as a list, the
+   target grows to 44 px, and the row's contribution to page height rises
+   by far less than the target does. See the height gate on /trips. */
+label.stayed {
+  display: flex; align-items: center; gap: var(--sp-2);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  margin: 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+}
+label.stayed:hover { background: var(--surface-2); }
+
+/* ---- muster ---- */
+.mode-live { margin-bottom: var(--sp-4); }
+.mode-reprint { margin-bottom: var(--sp-4); }
+/* V-02: the third mode. A sheet printed from live is frozen — it belongs
+   with the reprint chrome, not the live chrome, because what it shows will
+   not update. It is a DIFFERENT mode from a reprint all the same: a reprint
+   names its visit set and can reproduce itself, a snapshot cannot, and the
+   two must never share a label on a sheet read aloud during an evacuation. */
+.mode-snapshot { margin-bottom: var(--sp-4); }
+.print-instruction { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+kbd { font-family: var(--font-data); font-size: var(--fs-xs); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 .3em; }
+.incomplete-warn { background: var(--critical-bg); border: 2px solid var(--critical); border-left: var(--stripe) solid var(--critical); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-4); }
+.away { background: var(--ice-bg); border: 2px solid var(--ice); border-left: var(--stripe) solid var(--ice); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-5); }
+.away h2 { margin-top: var(--sp-2); }
+.summary { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-5); }
+.summary h2 { margin-top: var(--sp-2); }
+.count { color: var(--text-muted); font-weight: normal; font-size: var(--fs-sm); }
+.actions { margin: var(--sp-4) 0; display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.button-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin: var(--sp-3) 0; }
+/* R-23: the RESTORED tag — a dashed box, the house form for "second-hand /
+   not watched here" (.cat-tag-unwatched), never a colour: the muster prints
+   in one colour. Shared by the muster sheet and the gate roster so the same
+   fact reads the same on both. */
+.restored-tag, .roster-restored { display: inline-block; font-size: var(--fs-xs); font-weight: bold; letter-spacing: .04em; border: 1px dashed currentColor; border-radius: 2px; padding: 0 .3em; margin-left: .35em; vertical-align: middle; }
+.restored-note, .picker-restored { border: 1px dashed var(--line); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin: var(--sp-2) 0; }
+/* M-6 / T-L08-C (James, 2026-10-03): the ALSO ON SITE AT <peer> tag — a
+   DOUBLE rule, the form for "two records of one person", never a colour and
+   never RESTORED's dashed box (that means second-hand; this means
+   duplicated). Shared by the muster sheet, the gate roster and the analytics
+   site page so the same fact reads the same everywhere. */
+.elsewhere-tag, .roster-elsewhere { display: inline-block; font-size: var(--fs-xs); font-weight: bold; letter-spacing: .04em; border: 3px double currentColor; border-radius: 2px; padding: 0 .3em; margin-left: .35em; vertical-align: middle; }
+.elsewhere-note, .picker-elsewhere { border: 3px double var(--line); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin: var(--sp-2) 0; }
+/* M-5 (James, 2026-10-03): the reprint's "N on the original sheet have
+   checked out since" block — solid, like a statement the sheet knows. */
+.checked-out-since { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-4); }
+.checked-out-head { margin: 0 0 var(--sp-1); }
+.checked-out-lede { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+/* One column, not .names' two: each line is a name AND a time, and MEASURED
+   on the L09 reprint PDF the time wrapped onto a second line inside a
+   half-width column ("checked out 05:35" / "10/03"). */
+.checked-out-names { columns: 1; }
+.mode-note { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); }
+/* M-46 (James, 2026-10-03): the category label carried INSIDE a table's
+   <thead>, so a table that runs over several printed pages repeats it at the
+   top of each (browsers repeat the header group). Screen-hidden,
+   paper-shown, exactly like .page-cat below. */
+.page-cat-row { display: none; }
+
+/* ---- sync status. State is read from data-health in tests: an attribute
+        the stylesheet never contains, so a stylesheet match can never
+        stand in for a rendered element again. ---- */
+.peer { margin: var(--sp-2) 0; }
+.peer-offset { color: var(--text-muted); font-style: italic; font-size: var(--fs-sm); }
+.state-ok { color: var(--ok); }
+.state-bad { color: var(--critical); font-weight: 700; }
+
+/* FIX16 G: the Shift totals panel — read-only, one or two lines shut. */
+.shift-totals { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin: var(--sp-2) 0; }
+.shift-totals > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--sp-3); padding: var(--sp-1) var(--sp-3); min-height: 2.75rem; box-sizing: border-box; color: var(--text); font-size: var(--fs-sm); }
+.shift-totals > summary:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+.shift-head { font-weight: 650; color: var(--text-muted); white-space: nowrap; align-self: center; }
+.shift-nums { display: flex; flex-wrap: wrap; gap: 0 var(--sp-3); align-self: center; }
+.shift-n { white-space: nowrap; }
+.shift-n b { font-family: var(--font-data); font-size: var(--fs-base); }
+.shift-err { color: var(--critical); font-weight: 650; align-self: center; }
+.shift-body { padding: 0 var(--sp-3) var(--sp-2); }
+.shift-body p { margin: var(--sp-1) 0; }
+details summary { cursor: pointer; color: var(--ice); font-size: var(--fs-sm); }
+
+/* ---- login ---- */
+.err { color: var(--critical); font-weight: 650; }
+.not-recorded {
+  background: var(--critical-bg); color: var(--text);
+  border: 2px solid var(--critical); border-left: var(--stripe) solid var(--critical);
+  border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin: var(--sp-2) 0; font-weight: 650;
+}
+
+/* ==== U3: the muster sheet =================================================
+   The muster is read aloud during an evacuation and prints in ONE colour, so
+   every distinction below is carried by a WORD and a BOX FORM first and by
+   hue only as a secondary cue:
+
+     on site                     plain / hairline box      counted in the total
+     away at an uncontrolled     SOLID 2px box, ice stripe recorded status, not counted
+       destination                 — SCREEN ONLY            — and NOT this operation's
+                                                             responsibility, so it does
+                                                             not print (see .away-scope)
+     not tracked                 DASHED 2px box            a gap in knowledge;
+                                                           nothing is watching
+     may be incomplete           SOLID 2px box, red stripe the total may be short
+     on the road                 SOLID 2px box, ok stripe  dispatched from HERE to a
+                                   — SCREEN AND PAPER        peer post, no arrival
+                                                             recorded. Not counted, but
+                                                             OURS, so it prints with
+                                                             names (D-6, 2026-08-21)
+
+   Nothing here selects on a data-* attribute: those are the structural test
+   hooks (muster.html's header comment) and must stay style-free.        ---- */
+
+/* Sheet identity, printed at the head of every page. Screen already says it
+   in the header, so it is hidden here. */
+.sheet-runner { display: none; }
+
+.sheet-head { margin-bottom: var(--sp-4); }
+.mode-headline { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-3); }
+.mode-headline strong { font-size: var(--fs-lg); letter-spacing: .08em; }
+.sheet-time { font-family: var(--font-data); font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: var(--fs-sm); }
+.mode-detail { margin: var(--sp-1) 0 0; max-width: 72ch; font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* The uppercase word that carries a category when hue is unavailable. */
+.cat-line { margin: 0 0 var(--sp-1); }
+.cat-tag {
+  display: inline-block;
+  border: 2px solid var(--text);
+  border-radius: var(--radius);
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.cat-tag-unwatched { border-style: dashed; }  /* nothing is watching */
+/* M-14: the per-block printed category label. On SCREEN the section heading
+   is a few lines up and always visible, so this is redundant noise; on
+   PAPER the section heading may be on the previous page. Screen-hidden,
+   paper-shown — the reverse of every other rule in this file, and
+   deliberately so. */
+.page-cat { display: none; }
+.cat-tag-warn { background: var(--critical-bg); }
+.cat-head { margin-top: 0; }
+
+/* ---- the headcount: one obvious answer, and everyone it excludes ---- */
+.tally {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-left: var(--stripe) solid var(--ice);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-4) 0;
+}
+.tally-primary { display: flex; align-items: baseline; gap: var(--sp-4); }
+.tally-num {
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  font-size: 3rem; font-weight: 700; line-height: 1;
+  min-width: 2.5ch; text-align: right;
+}
+.tally-num-sm {
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-xl); font-weight: 700; line-height: 1;
+  min-width: 2.5ch; text-align: right;
+}
+.tally-of { flex: 1 1 20rem; }
+.tally-label { display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.tally-primary .tally-label { font-size: var(--fs-lg); }
+.tally-row .tally-label { font-size: var(--fs-sm); }
+.tally-note { display: block; max-width: 68ch; color: var(--text-muted); font-size: var(--fs-xs); }
+.tally-rest { list-style: none; margin: var(--sp-3) 0 0; padding: var(--sp-2) 0 0; border-top: 1px solid var(--line); }
+.tally-row { display: flex; align-items: baseline; gap: var(--sp-4); padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
+.tally-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+/* ---- sections ---- */
+.section-head { border-bottom: 2px solid var(--line); padding-bottom: var(--sp-1); margin-bottom: var(--sp-3); }
+.empty { color: var(--text-muted); }
+
+/* ---- on-site roster ---- */
+.company { margin: var(--sp-4) 0; }
+.company-name { margin: 0 0 var(--sp-2); border-left: var(--stripe) solid var(--ice); padding-left: var(--sp-2); }
+.trade { margin: var(--sp-3) 0 var(--sp-3) var(--sp-3); }
+.trade-name {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+}
+.names { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: var(--sp-6); }
+.names li { break-inside: avoid; padding: var(--sp-1) 0; border-bottom: 1px solid var(--line); }
+.summary-lede { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+
+/* ---- not on site ---- */
+.offsite { margin-top: var(--sp-6); }
+.pad { margin: var(--sp-3) 0; }
+/* A person's name must never be split across two lines: on a sheet being
+   read aloud, a wrapped name is a name read twice or not at all. */
+.away td:first-child, .not-tracked td:first-child { white-space: nowrap; padding-right: var(--sp-4); }
+.pad h4 { margin: 0 0 var(--sp-1); font-size: var(--fs-base); font-weight: 650; }
+/* DASHED, deliberately: this is a gap in knowledge, not one more panel that
+   says the site knows where somebody is. */
+.not-tracked {
+  background: var(--surface);
+  border: 2px dashed var(--line);
+  border-left: var(--stripe) solid var(--warning);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  margin-top: var(--sp-4);
+}
+/* .away-scope is .away's PAPER counterpart and the exact inverse of it:
+   screen-hidden here, shown in the print block, where .away is hidden.
+   2026-08-21 (James, who works this site and owns the liability question):
+   people away at an uncontrolled destination are tracked by this post but
+   are NOT this operation's responsibility during an evacuation — the
+   destination operator's. The printed sheet is scoped to the people this
+   operation must account for, so it carries their COUNT and a line saying
+   whose they are, and never their names. The names stay on screen.
+   SUPERSEDED for paper by James, 2026-10-01: print = roster only (no sync
+   verdicts, no counts/summary pages) — the count is a count, so the print
+   block now hides .away-scope as well and it renders nowhere. */
+.away-scope { display: none; }
+
+/* .sync-scope — the muster's freshness line (SYNC-HONESTY, 2026-09-09): the
+   same per-peer verdict as the top-bar chip, on the sheet itself, because
+   the bar is hidden on paper and the muster is the document an insurer may
+   read. Shown on screen too — an officer must be able to see what the
+   paper will say. (2026-10-01, James: print = roster only — this block is
+   SCREEN-ONLY now; the print block hides it.) Quiet when healthy; degraded (or unavailable) takes
+   .incomplete-warn's form (critical stripe, .cat-tag-warn) because it means
+   the same thing: this sheet may be short records it does not know about. */
+.sync-scope { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-4); }
+.sync-scope-bad { background: var(--critical-bg); border: 2px solid var(--critical); border-left: var(--stripe) solid var(--critical); }
+.sync-peers { margin: 0 0 var(--sp-1); padding-left: var(--sp-4); }
+
+/* ---- on the road (D-6, 2026-08-21) ----------------------------------
+   The fourth population: dispatched from THIS post to a peer post, no
+   arrival recorded. It is deliberately shaped to read as a STATEMENT, not
+   as a warning, and the contrast that matters is with .incomplete-warn a
+   few rules up:
+
+     .incomplete-warn  the sheet may be short people it does not know about.
+                       Critical stripe, "MAY BE INCOMPLETE", .cat-tag-warn.
+     .on-road          the sheet knows exactly who these people are and
+                       exactly where they went. Nothing has failed. The
+                       stripe is --ok and there is no warn tag anywhere in
+                       the section.
+
+   SOLID, like the panels that state what the sheet knows, and not dashed
+   like .not-tracked: something IS watching these runs — the destination
+   post's deadline board — even though this post cannot read its clock. On
+   paper the hue is gone and the words carry it, which is why the category
+   tag spells the whole condition out rather than saying "IN TRANSIT". */
+.on-road {
+  background: var(--surface);
+  border: 2px solid var(--line);
+  border-left: var(--stripe) solid var(--ok);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  margin-top: var(--sp-5);
+}
+.on-road .section-head { margin-top: var(--sp-2); }
+.road-lede { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.road-trip { margin: var(--sp-3) 0; }
+.road-head { margin: 0 0 var(--sp-1); font-size: var(--fs-base); font-weight: 650; }
+.road-meta { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+/* ==== end U3 ============================================================ */
+
+/* ==== U2 BEGIN — operator console + person picker =====================
+   Appended by chunk U2. Everything below is component rules only: no
+   literal colour, no theme block, nothing that belongs in the token
+   sections above. ==================================================== */
+
+/* ---- the inbound board. One row per vehicle, countdown as the headline
+        numeral.
+
+        Urgency is carried by the UPPERCASE WORD in .board-urgency and, for
+        the unresolved state, by the STRIPE'S LINE STYLE (dashed rather than
+        solid) as well as by hue — hue alone is never the signal here.
+
+        CORRECTED 2026-08-21 (V-11): this comment used to say urgency was
+        carried by the STRIPE WEIGHT. It is not, and never was. Every solid
+        .board-row variant below uses the same `var(--stripe)` left border
+        and changes only `border-color`; the weight does not vary by
+        urgency at all. A comment claiming a colour-blind-safety mechanism
+        that does not exist is worse than no comment, because the next
+        person reads it as coverage. The word and the dash are the two
+        mechanisms that are really there. ---- */
+.board-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 15rem) minmax(14rem, 1fr) minmax(16rem, 1.2fr);
+  gap: var(--sp-3) var(--sp-4);
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: var(--stripe) solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-3) 0;
+}
+@media (max-width: 60rem) { .board-row { grid-template-columns: minmax(0, 1fr); } .board-row > * { min-width: 0; } } /* W8 M-20: 1fr alone is minmax(auto,1fr) and let a 40px countdown widen the page at 320px */
+
+.board-lead { display: flex; flex-direction: column; gap: var(--sp-1); }
+.board-lead .countdown { color: var(--text); word-break: break-word; }
+.board-lead-label {
+  color: var(--text-muted); font-size: var(--fs-xs);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.board-urgency {
+  align-self: flex-start;
+  font-size: var(--fs-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em;
+  border: 2px solid var(--line); border-radius: var(--radius);
+  padding: 0 var(--sp-2);
+}
+.board-row[data-urgency="overdue"] { border-color: var(--critical); border-left-color: var(--critical); background: var(--critical-bg); }
+.board-row[data-urgency="overdue"] .board-urgency { border-color: var(--critical); color: var(--critical); }
+/* Unresolved is DASHED, so "the timer expired while the link was down" is
+   never mistaken for one more ordinary red row — the same distinction
+   .notice-fault draws. */
+.board-row[data-urgency="unresolved"] { border: 2px dashed var(--critical); border-left: var(--stripe) dashed var(--critical); background: var(--critical-bg); }
+.board-row[data-urgency="unresolved"] .board-urgency { border-style: dashed; border-color: var(--critical); color: var(--critical); }
+.board-row[data-urgency="due"] { border-left-color: var(--ice); }
+.board-row[data-urgency="due"] .board-urgency { border-color: var(--ice); color: var(--ice); }
+
+/* ---- the gate's inbound list (James, 2026-08-21) ---------------------
+   One <details> per vehicle on the road toward this post: the browser's own
+   disclosure control, so expanding works with scripting off. It carries the
+   SAME data-urgency vocabulary as .board-row above and repeats that block's
+   two real mechanisms — the uppercase word, and a DASHED outline for the
+   unresolved state — rather than relying on hue, which is not controlled
+   for here. The rules are written out for this element instead of being
+   appended to .board-row's selector list because the two are different
+   layouts (a grid row vs a disclosure), and a shared selector would make
+   one of them wrong the next time either is restyled. ---- */
+.inbound-row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: var(--stripe) solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-2) var(--sp-3);
+  margin: var(--sp-2) 0;
+}
+.inbound-row > summary {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2) var(--sp-3);
+  cursor: pointer; font-weight: 650;
+}
+.inbound-from, .inbound-count, .inbound-due, .inbound-countdown, .inbound-driver {
+  font-weight: 400; font-size: var(--fs-sm); color: var(--text-muted);
+}
+/* ⟦R-28 revision 2/3, team-lead, 2026-09-16⟧ "due in 1h 26m"/"OVERDUE
+   12m" in normal font, overdue in red — .inbound-countdown carries that
+   text verbatim (inbound.go's own formatHM/applyAlertFace); this is the
+   colour half, keyed off the SAME data-urgency the row's own
+   border/background already use, so the word and the row agree. */
+.inbound-row[data-urgency="overdue"] .inbound-countdown,
+.inbound-row[data-urgency="unresolved"] .inbound-countdown { color: var(--critical); font-weight: 650; }
+.inbound-meta { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); }
+.inbound-names { margin: var(--sp-1) 0; }
+.inbound-form { margin-top: var(--sp-3); }
+/* item 2: the per-passenger ticks + time control, behind a small "adjust"
+   link — same small-link/roster-time look every other collapsed control
+   on this page already has. */
+.inbound-adjust { margin: var(--sp-2) 0; }
+.inbound-adjust > summary { font-size: var(--fs-sm); color: var(--ice); cursor: pointer; }
+.inbound-adjust[open] > summary { margin-bottom: var(--sp-1); }
+/* One tick target per person, comfortably apart: this is operated in gloves
+   at -30 and a mis-tap here omits somebody from the muster. */
+.arriving { display: block; padding: var(--sp-1) 0; }
+.inbound-row[data-urgency="overdue"] { border-color: var(--critical); border-left-color: var(--critical); background: var(--critical-bg); }
+.inbound-row[data-urgency="overdue"] .board-urgency { border-color: var(--critical); color: var(--critical); }
+.inbound-row[data-urgency="unresolved"] { border: 2px dashed var(--critical); border-left: var(--stripe) dashed var(--critical); background: var(--critical-bg); }
+.inbound-row[data-urgency="unresolved"] .board-urgency { border-style: dashed; border-color: var(--critical); color: var(--critical); }
+.inbound-row[data-urgency="due"] { border-left-color: var(--ice); }
+.inbound-row[data-urgency="due"] .board-urgency { border-color: var(--ice); color: var(--ice); }
+
+.board-vehicle { font-size: var(--fs-lg); font-weight: 650; margin: 0 0 var(--sp-2); }
+.board-from { color: var(--text-muted); font-weight: 400; font-size: var(--fs-sm); }
+.board-dl { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; }
+.board-dl dt { color: var(--text-muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .05em; }
+.board-dl dd { margin: 0; }
+.board-face { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); }
+.board-action { border-left: 1px solid var(--line); padding-left: var(--sp-4); }
+@media (max-width: 60rem) { .board-action { border-left: none; padding-left: 0; } }
+
+/* ---- the person picker (templates/_picker.html) ---- */
+.field-label { font-weight: 650; margin-top: var(--sp-4); }
+.picker {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); margin: var(--sp-2) 0;
+}
+.picker-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line);
+}
+.picker-scope, .picker-tally {
+  font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+}
+.picker-tally { font-weight: 700; color: var(--text); margin-left: auto; }
+.picker-search input { min-width: 14rem; }
+/* The safe-default sentence is part of the control, not a footnote: it is
+   the line that says which way a missed tick fails. */
+.picker-default {
+  margin: 0; padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line); border-left: var(--stripe) solid var(--warning);
+  background: var(--warning-bg); font-size: var(--fs-sm);
+}
+.picker-section { border-bottom: 1px solid var(--line); }
+.picker-section-head {
+  margin: 0; padding: var(--sp-2) var(--sp-3);
+  font-weight: 700; font-size: var(--fs-sm);
+  background: var(--surface-2); border-left: var(--stripe) solid var(--ice);
+  cursor: default;
+}
+details.picker-section > summary.picker-section-head { cursor: pointer; }
+.picker-section-note { margin: 0; padding: 0 var(--sp-3) var(--sp-2); color: var(--text-muted); font-size: var(--fs-xs); }
+/* Two boxes carrying one name: the sentence that says what the pair means
+   and which way the safe error lies. Rendered only where such a pair is,
+   in the safe-default sentence's own dress so it reads as the same kind of
+   instruction. */
+.picker-samename {
+  margin: 0; padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--line); border-left: var(--stripe) solid var(--warning);
+  background: var(--warning-bg); font-size: var(--fs-sm);
+}
+.picker-groups { max-height: 26rem; overflow-y: auto; }
+.picker-group + .picker-group { border-top: 1px solid var(--line); }
+.picker-group-head, .picker-sub-head {
+  /* align-items: center rather than baseline now that .picker-all is a
+     44 px target sharing this row; the vertical padding is reduced by the
+     same amount the taller control adds, so the heading's own height is
+     unchanged (M-12's "zero added height" condition). */
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3);
+  padding: 0 var(--sp-3);
+  min-height: 44px;
+  background: var(--surface-2);
+  position: sticky; top: 0;
+}
+.picker-sub-head { background: var(--surface); top: 2rem; border-top: 1px solid var(--line); }
+.picker-group-name { font-weight: 700; }
+.picker-sub-name { color: var(--text-muted); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .05em; }
+.picker-group-count { color: var(--text-muted); font-size: var(--fs-xs); }
+/* A select-all always names its own scope and count in its label — there is
+   no unscoped one anywhere in this app, by design. */
+/* M-12, and it is the same inversion V-09 is about, one level up: this
+   control moves FIVE people at once and measured 185 x 23.6 px — the
+   smallest control in a picker whose per-person rows are 41.4 px. It gets
+   the same 44 px floor, taken from the padding its own container already
+   spends, so the group heading does not grow. */
+.picker-all {
+  font-size: var(--fs-sm); margin-left: auto;
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: 44px; padding: 0 var(--sp-2);
+  cursor: pointer;
+}
+.picker-row {
+  display: block; padding: var(--sp-2) var(--sp-3);
+  min-height: 2.75rem; box-sizing: border-box; /* W8 M-22: 41px rows on /trips */
+  border-top: 1px solid var(--line); cursor: pointer;
+}
+.picker-row:hover { background: var(--surface-2); }
+.picker-row input { margin-right: var(--sp-2); }
+.picker-empty, .picker-none { padding: var(--sp-3); margin: 0; }
+[hidden] { display: none !important; }
+
+/* ==== U2 END ========================================================= */
+
+/* ---- gate: the officer's working screen, STACKED top/bottom (James,
+        2026-09-11: "the layout ... similar to the access page so the top
+        half of the page should be entering in names to either check in or
+        add to the database ... the second half of the page needs to be
+        the on site roster").
+
+   THIS REPLACES THE SIDE-BY-SIDE COLUMN BELOW (James, 2026-09-10 — kept in
+   this comment's history for provenance, not in force). A column beside
+   the forms matched the WIDTH his gate PC has to spare; he has since asked
+   for the page to read like his own Access frmCheckIn instead — entry on
+   top, roster underneath, never beside — regardless of screen width. There
+   is no width breakpoint below any more: .gate-work (the vehicle forms and
+   the inbound board) and .gate-roster (the on-site list) always stack, in
+   that order, which is also DOM/tab order — nothing here reorders focus.
+
+   PROPORTION — REVISED AGAIN (gate-checkin-spec, James, 2026-09-13: "it
+   should be optomised for a typical monitor of 1920 by 1200 but auto
+   adjust based on current display"). ⟦was: "~1366x768", 30/70
+   (.gate-work/.gate-roster), GATE-ACCESS-STYLE 2026-09-12⟧ — that was my
+   assumption at the time, not his instruction, and he has corrected it.
+   1920×1200 (56% more height than 1366×768) is the new target, and the
+   SPLIT moves to 35/65: the top half now carries more fields than it did
+   at 30/70 (Last/First replacing one Name box, Position and Phone new,
+   each accumulated row's disclosure a line taller with two more inputs in
+   it) and the extra height budget goes disproportionately there rather
+   than to the roster, which was ALREADY "almost the rest of the page" per
+   James's own 2026-09-12 ruling and is not being asked to shrink in
+   relative terms — 35/65 is the smallest step off 30/70 that gives the
+   busier top half breathing room without undoing that ruling. "AUTO
+   ADJUST" is what `100vh`-relative sizing and the `min-height` gate below
+   already do — nothing in this rule is a fixed pixel target, and a shorter
+   or heavily-zoomed viewport still falls back to plain stacked flow with
+   the page scrolling as a whole (below) rather than a cramped fit at any
+   resolution.
+
+   THE ACTION BUTTONS STAY REACHABLE WITHOUT SCROLLING THE PAGE — his
+   actual complaint, restated 2026-09-13 for the roster's own buttons
+   ("the sign-out/edit buttons stay reachable without scrolling the
+   page"). They are not inside the roster's own scrollbox: the sign-out/
+   edit-person/remove buttons are now SIBLINGS of .roster-table ABOVE it
+   within .gate-roster's form (gate.html — MOVED there 2026-09-13; they
+   used to sit after the table), and only .roster-table itself scrolls
+   (below) — so growing the roster's share of the page grows the LIST, not
+   the distance from the list to its own buttons, which stay pinned in
+   place regardless of roster length.
+
+   BOTH HALVES FIT ONE SCREEN AT THE TARGET RESOLUTION WITHOUT THE PAGE
+   ITSELF SCROLLING: each half scrolls INSIDE ITS OWN BOX instead. The
+   100vh budget is offset by 12rem for the chrome outside .gate-layout (top
+   bar, page padding, the h1, the page's own bottom padding and page nav) —
+   an ABSOLUTE offset, not a resolution-scaled one, so it costs
+   proportionally less of a 1200px-tall viewport than a 768px one and
+   leaves MORE room for both halves at the new target, not less.
+   Gated on min-height so a short or heavily-zoomed viewport falls back to
+   plain stacked flow with the page scrolling as a whole, rather than two
+   cramped scrollboxes.
+   NONE OF THIS IS BROWSER-VERIFIED — this project has no rendering test —
+   so treat the geometry as a best-effort target, not a measured fit.
+   Row targets are untouched (44px, M-12/V-09); nested flex parents need
+   min-height:0 at every level or the inner scrollbox cannot shrink below
+   its content and the outer box grows past its share instead. */
+.page.gate {
+  /* WIDER, for 1920×1200's spare horizontal room — a max-width, so a
+     narrower display is unaffected (it never reaches this cap) and still
+     gets the whole viewport, per "auto adjust based on current display".
+     ⟦was: 92rem, chosen only to fit the roster table's six columns at
+     ~1366px wide⟧. */
+  max-width: 112rem;
+}
+/* The headcount is the number an officer wants at a glance for a muster;
+   his Access form gives "ON SITE NOW: 23" its own bold 12pt line. */
+.gate-roster h2 { font-size: var(--fs-xl); }
+.roster-help > summary, .roster-time > summary, .single-checkin-details > summary {
+  cursor: pointer; font-size: var(--fs-sm); color: var(--text-muted); padding: var(--sp-1) 0;
+}
+.roster-help .note { margin-top: var(--sp-2); }
+.roster-time[open] { margin: var(--sp-2) 0; }
+/* ⟦R-28⟧ the arriving column's own secondary path, collapsed by default
+   — its own comment (gate_vehicle.html) explains why a closed <details>
+   costs nothing functionally. Shut, it is one line; open, its fieldset
+   keeps the SAME control sizing (.gate-vehicle-page input/button, above)
+   everything else on this page has. */
+.single-checkin-details[open] { margin-bottom: var(--sp-2); }
+.single-checkin-details fieldset { margin: var(--sp-1) 0; padding: var(--sp-2) var(--sp-3); }
+/* .leaving-section ⟦gate-checkin-spec, 2026-09-13⟧: the outbound form's own
+   <details> wrapper (gate.html) — its <summary> carries the real <h2>, whose
+   own font-size/color rules win over the generic `details summary` rule
+   above for the heading text itself; this just tidies the disclosure
+   marker's alignment against a heading instead of the small note text it
+   usually sits beside. */
+.leaving-section > summary { list-style-position: outside; margin-bottom: var(--sp-2); }
+.leaving-section > summary > h2 { display: inline; }
+{{/* D-88: this whole file is shared across every post, road and
+     orientation-bearing alike (page_open's "styles" include has no
+     per-site branch anywhere else in it), so a class whose NAME carries
+     orientation vocabulary would otherwise ship its rule — and this
+     comment explaining it — on a road post's page too, even though no
+     element there ever uses the class: nothing on an orientation=false
+     post ever renders .orientation-onfile (gate.html only emits it inside
+     the orientation-tick row, which does not exist at all on that
+     config). MEASURED live on 10.90.1.10 (a road post): the served page
+     carried one substring hit from exactly this rule's own source text —
+     the criterion has always been zero, and an inert-but-present rule
+     still breaks that check the same as a used one would; a check that
+     starts reporting a hit it cannot act on is a check the next reader
+     learns to ignore. Gated here at the SOURCE rather than renamed,
+     because a rename only hides the word while a road post still ships
+     orientation styling it can never reach — field/with is the same safe,
+     reflection-based "does this page's data carry this" the top bar
+     already uses (templatefuncs.go), so a page whose data has no Cfg at
+     all (none besides /gate ever sets this class) skips the block rather
+     than erroring. */}}
+{{with field .Data "Cfg"}}{{if .HasOrientation}}
+/* .orientation-onfile ⟦gate-checkin-spec, 2026-09-13⟧: the calm sibling of
+   .cross-site-orientation's warning box — same field-row rhythm as the rest
+   of the accumulated row, deliberately NOT a .notice-warn: there is nothing
+   to act on here. */
+.orientation-onfile { color: var(--ok); font-size: var(--fs-sm); }
+{{end}}{{end}}
+/* ---- the on-site roster TABLE (GATE-ACCESS-STYLE, 2026-09-12) ----------
+   Real columns — Last | First | Company | Time | Date, a tick column
+   ahead of them — replacing the grouped-by-company picker this page used
+   to render (design/ACCESS-APP-LAYOUT.md §2's lstOnSite is flat too).
+   .roster-row is shared by the header (a plain div) and every data row
+   (label.picker-row) so their cells line up; the header stays a literal
+   `class="picker-row"` on data rows ONLY — see gate.html's own comment on
+   why that class carries nothing else. */
+.roster-table {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: var(--radius);
+}
+.roster-row, .gate-roster label.picker-row {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(6rem, 1fr) minmax(6rem, 1fr) minmax(8rem, 1.6fr) 4.5rem 4.75rem;
+  align-items: center;
+  gap: var(--sp-2);
+  /* Vertical padding lives on the cells, not the row: the row's own height
+     is then max(44px checkbox, tallest cell), so a one-line row stays at the
+     44px target and a row whose Company wraps GROWS (R2-L15-33). */
+  padding: 0 var(--sp-3);
+  min-height: 2.75rem; /* the 44px row target, M-12/V-09 */
+}
+.roster-table input[type=checkbox] { margin-top: 0; margin-bottom: 0; }
+.roster-table .roster-cell { padding: var(--sp-1) 0; min-width: 0; overflow-wrap: anywhere; }
+.roster-table > .roster-row, .roster-table > label.picker-row { flex: 0 0 auto; }
+.roster-table > label.picker-row { scroll-margin-top: 3rem; } /* clear the sticky head */
+.roster-head {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface);
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+}
+.gate-roster label.picker-row { border-top: 1px solid var(--line); cursor: pointer; }
+.gate-roster label.picker-row:first-of-type { border-top: none; }
+.gate-roster label.picker-row:hover { background: var(--surface-2); }
+.roster-cell-time, .roster-cell-date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* ⟦FIX8, 2026-10-05⟧ the per-row Time out box: absent until the roster's
+   "Time out (if not now)" disclosure is open, then on its own line under
+   the row's cells (columns 2..end), so it fits at 320 px without widening
+   the six-column grid. The visible "Time out" word is the start of each
+   box's aria-label ("Time out for <Last>, <First>"), so label-in-name holds. */
+.roster-cell-out { display: none; }
+form:has(details.roster-timeout[open]) .roster-cell-out {
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+  grid-column: 2 / span 3; padding-top: 0;
+}
+form:has(details.roster-timeout[open]) .roster-cell-out::before { content: "Time out"; font-size: var(--fs-sm); color: var(--text-muted); }
+.roster-cell-out input { width: auto; max-width: 100%; min-width: 0; box-sizing: border-box; min-height: 2.75rem; }
+.time-legend { font-weight: 700; }
+.roster-ref { color: var(--text-muted); font-size: var(--fs-xs); }
+.gate-layout { display: flex; flex-direction: column; gap: var(--sp-6); }
+/* W8 (M-20..M-25 sweep, JS-off phone): the one-screen height cap is a
+   DESKTOP rule. It used to sit in the min-height block below and be lifted
+   only by gate_script's sizeIndividualRoster(), so on a phone with scripting
+   OFF the capped column squeezed the check-out list to 2-5 px. A phone now
+   stacks and the page scrolls, with or without script. */
+/* D19/D20 (James, 2026-10-04: R-fix2 FH): the cap is NOT on .gate-layout any
+   more. A max-height on the flex column is a promise the content cannot
+   keep: when .gate-work + the roster's own fixed parts (heading, buttons,
+   time control, the compact check-out box) outran it, the column overflowed
+   ITS box, so the footer — laid out after the capped box — painted over
+   Confirm/Cancel and the time radio (D20), and with script OFF the roster
+   was the only thing allowed to shrink and went to 2 px (D19). The cap now
+   sits on the LIST alone, with a floor of ~5 rows + head (the same floor
+   gate_script's sizeIndividualRoster() holds), so the worst case is the page
+   scrolling, never one box painting over another. Script, when it runs,
+   overrides this inline from measured geometry. */
+@media (min-height: 34rem) and (min-width: 60rem) {
+  .gate-roster .roster-table { max-height: max(18rem, calc(100vh - 30rem)); }
+}
+@media (min-height: 34rem) {
+  /* Top half: the arriving/leaving vehicle forms and the inbound board.
+     This is the ONE side of the restack that did not already scroll
+     internally, so it gets its own overflow rather than pushing the
+     roster off-screen or the page into a whole-page scroll. */
+  .gate-work {
+    flex: 0 1 35%;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: var(--sp-2);
+  }
+  /* Bottom half: the roster — "almost the rest of the page" (above). It
+     becomes a flex column itself so the LIST — not the heading, the help
+     disclosure, the sign-out/edit/remove buttons or the time control — is
+     the part that grows, and only .roster-table scrolls: the buttons ABOVE
+     it (moved there 2026-09-13) stay at their natural size, reachable with
+     no page scroll regardless of roster length. */
+  .gate-roster { flex: 1 1 65%; min-height: 0; display: flex; flex-direction: column; }
+  .gate-roster form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .gate-roster .picker { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .gate-roster .roster-table { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  /* ⟦R-27, James, 2026-09-16⟧ the individual page's checkout-confirm box
+     (gate.html, gate_vehicle_form's Compact instantiation) shares this
+     rule when it renders in .gate-roster's place: gate.html shows the
+     tick-table OR the confirm box, never both at once (see gate.html's
+     own comment — a rendered screenshot with BOTH forms present at once
+     MEASURED the tick-table's scroll box collapsing to zero rows, which
+     is what ruled out a two-forms-competing layout entirely). Its own
+     accumulated passenger list can still run long, so it gets the same
+     internal scroll the roster table gets, capped rather than pushing
+     the page past the .gate-layout budget. */
+  .gate-roster form.vehicle-form .passenger-list { max-height: 100%; overflow-y: auto; }
+  /* ⟦R-27 revision 2, James/team-lead, 2026-09-16⟧ NOT A CSS-ONLY SPLIT
+     for this page — MEASURED (repeatedly, with a red/blue diagnostic
+     background) that neither a percentage flex-basis NOR an explicit
+     `height`/`max-height` at any point in the .gate-roster > form >
+     .picker > .roster-table chain reliably binds: content past the
+     declared size either collapses the box to near-zero or grows past
+     it regardless of the number given, and the diagnostic backgrounds
+     confirmed the browser is not honouring the declared box size at
+     all once real content (15 rows) is inside it — a deeper interaction
+     with this chain's OWN flex-in-flex-in-flex nesting than a value
+     tweak fixes. .gate-work at least takes its natural content height
+     reliably (verified: CHECK IN is always fully visible). The roster's
+     own scroll cap is set at RUNTIME instead, in gate_script
+     (gate_vehicle.html) — `sizeIndividualRoster()` reads the ACTUAL
+     rendered geometry (getBoundingClientRect against window.innerHeight)
+     and sets .roster-table's max-height directly, which cannot be wrong
+     about the numbers a stylesheet only estimates. Scoped in JS to
+     .gate-individual (this page only) so the vehicle page is untouched. */
+  .gate-individual .gate-work { flex: 0 0 auto; overflow: visible; }
+  /* ⟦R-27 revision 2⟧ every pixel trimmed ABOVE .roster-table is a pixel
+     the runtime sizing above (gate_script) gives back to it — the
+     "≥8 rows visible" target measurably needs this, not just the
+     runtime cap. .gate-layout's own gap and the roster heading's top
+     margin were the two cheapest: neither carries information, both
+     are pure whitespace. */
+  .gate-individual .gate-layout { gap: var(--sp-3); }
+  .gate-individual .gate-roster h2 { margin-top: 0; }
+  /* ⟦R-28, team-lead, 2026-09-16⟧ the SAME "let the top take its natural
+     height, hand the runtime sizing the rest" fix — the vehicle-mode
+     page's own two-column top is exactly the height-CSS-cannot-predict
+     problem this pattern already exists for; the sizing script above is
+     already scoped to try this page too (gate_vehicle.html's own
+     comment). */
+  .gate-vehicle-page .gate-work { flex: 0 0 auto; overflow: visible; }
+  .gate-vehicle-page .gate-layout { gap: var(--sp-3); }
+  .gate-vehicle-page .gate-roster h2 { margin-top: 0; }
+}
+
+/* ⟦R-27 revision 2⟧ THE INDIVIDUAL PAGE'S OWN SIZE AND DENSITY.
+   James: "for older eyes and hunt-and-peck: base text ≥18px, input boxes
+   ≥44px tall, CHECK IN visibly the largest thing in the top half." All
+   scoped to .gate-individual so gate_vehicle.html (the group page,
+   unchanged behaviour) never sees a pixel of this. */
+.gate-individual { font-size: var(--fs-lg); }
+.gate-individual input, .gate-individual select, .gate-individual button, .gate-individual .button {
+  min-height: 2.75rem;
+  font-size: var(--fs-lg);
+}
+.gate-individual .big-checkin {
+  display: block;
+  width: 100%;
+  min-height: 3.5rem;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+}
+/* ⟦R-27 revision 2⟧ trims the CHECK IN fieldset's OWN whitespace (never
+   its controls' size — those stay at the ≥44px/≥18px floor above) so
+   the runtime roster sizing (gate_script) has more of the viewport
+   left to give the table: MEASURED to matter for the "≥8 rows visible"
+   target once the fieldset itself was already at its floor size. */
+.gate-individual fieldset { margin: var(--sp-2) 0; padding: var(--sp-2) var(--sp-3); }
+.gate-individual .field { margin: var(--sp-1) 0; }
+/* ⟦R-27 revision 2⟧ PROSE STRIPPED FROM THE SCREEN, NOT FROM THE MARKUP.
+   The safe-default paragraph and the on-site count both belong to
+   onsite_roster_table, shared verbatim with the vehicle page (and its
+   own LOCKED test, TestEveryPickerTellsTheOperatorWhichWayAMissedTickFails,
+   which reads the vehicle page's copy of this same table) — hiding them
+   here is presentation only; the markup a scriptless browser or a test
+   reads is unchanged. The short replacement fact rides the checkout
+   notice instead (gate.html's own "Checking out:" line). */
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 4: "the roster half in
+   vehicle mode must be IDENTICAL to the individual page's roster half" —
+   .picker-default/.picker-scope/.button-link/.roster-actions/.picker-head/
+   .picker/aside>.roster-time below are ALL widened from .gate-individual
+   alone to .gate-individual, .gate-vehicle-page, so the SAME shared
+   gate_roster_half markup (unchanged, already identical between the two
+   pages — see that define's own comment) now looks identical too, not
+   just structurally the same underneath two different stylesheets. */
+.gate-individual .picker-default, .gate-vehicle-page .picker-default,
+.gate-individual .picker-scope, .gate-vehicle-page .picker-scope { display: none; }
+/* ⟦R-27 revision 2⟧ a submit button styled to read as a small text
+   link — still `<button type=submit>`, never `<a>`, because an anchor
+   cannot post a form. */
+.gate-individual .button-link, .gate-vehicle-page .button-link {
+  background: none;
+  border: none;
+  border-left: none;
+  padding: 0;
+  min-height: 0;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ice);
+  text-decoration: underline;
+}
+.gate-individual .button-link:hover, .gate-vehicle-page .button-link:hover { color: var(--text); }
+/* ⟦R-27 revision 3, team-lead, 2026-09-16⟧ TWO-COLUMN TOP FORM (2a):
+   Last|First, Company|Vehicle #, each pair sharing a row — the density
+   gain that buys back roster rows without touching the ≥18px text /
+   ≥44px control floor (row count is a LAYOUT problem, not a size one). */
+.gate-individual .field-row { display: flex; gap: var(--sp-4); margin: var(--sp-1) 0; }
+.gate-individual .field-row > .field { flex: 1 1 0; min-width: 0; margin: 0; }
+/* (2b) the fieldset border/legend and the h1 page title are gone from
+   the markup (see gate.html) — nothing here to hide, they were never
+   rendered. commit-block's inherited border-top (the "grey bar", shared
+   with the vehicle page's own commit button, where it visually
+   separates the button from a long accumulated list above it — there is
+   no such list here) is switched off on this page only. */
+.gate-individual .commit-block { border-top: none; padding-top: 0; }
+/* (2c) "add to database" and "enter an earlier time" on one line,
+   small text both sides — .roster-time's own <summary> is already
+   styled as a small muted link (_styles.html, shared with the roster
+   half's identical control), so placing it inline here needs no new
+   look, only a flex row to hold it beside the other link. */
+.gate-individual .note-links {
+  display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4); font-size: var(--fs-sm);
+}
+.gate-individual .note-links .roster-time { margin: 0; }
+.gate-individual .note-links .roster-time[open] { flex-basis: 100%; margin-top: var(--sp-2); }
+/* (2d) the roster toolbar (Check out selected / Edit person / Remove)
+   and the picker's own search+tally row sit directly on top of each
+   other with no border or gap between them — .picker-head is INSIDE
+   the shared onsite_roster_table define (used verbatim by the vehicle
+   page too), so its search input and JS stay exactly where the shared
+   picker script already finds them; only the visual seam between the
+   two rows is removed here, not the DOM structure. */
+.gate-individual .roster-actions, .gate-vehicle-page .roster-actions { margin: 0; padding: var(--sp-2) 0; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.gate-individual .roster-actions h2, .gate-vehicle-page .roster-actions h2 { margin: 0; font-size: var(--fs-lg); margin-right: auto; }
+.gate-individual .roster-actions .roster-time, .gate-vehicle-page .roster-actions .roster-time { font-size: var(--fs-sm); }
+.gate-individual .roster-actions .roster-time[open], .gate-vehicle-page .roster-actions .roster-time[open] { flex-basis: 100%; }
+.gate-individual .picker-head, .gate-vehicle-page .picker-head { margin: 0; padding-top: 0; border-bottom: 1px solid var(--line); }
+.gate-individual .picker, .gate-vehicle-page .picker { margin-top: 0; }
+/* (2e) the roster half's OWN "enter an earlier time" now lives only
+   inside the Remove flow (gate.html moved the <details> there); this
+   rule is defensive in case anything upstream of it still renders the
+   old top-level copy. */
+.gate-individual aside > .roster-time, .gate-vehicle-page aside > .roster-time { display: none; }
+/* THE COMPANY FIELD (item 1) — always visible, never toggled by
+   .new-fields' own show/hide (that class still exists for the OTHER
+   escape fields — Position/Phone/Trade have no box on this page at
+   all, R-27's own field list omits them). Three states, switched by
+   the pick-resolution script (gate_vehicle.html): the picker+escape
+   (typing a new person), a read-only line (a resolved pick), or the
+   orientation-post refusal note (a new name where R-12 already refuses
+   creation) — never more than one visible at once. */
+.gate-individual .company-readonly { margin: 0; padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); min-height: 2.75rem; box-sizing: border-box; display: flex; align-items: center; }
+{{/* ⟦D-88⟧ gated, same reason and same pattern as .orientation-onfile
+     above: the selector's own name is an "orient" occurrence, and
+     gate.html now (revision 3) omits the element entirely on a road
+     post — so an ungated rule here would be shipping a hit this check
+     can no longer even call "inert", since nothing rendered on this
+     page can carry the class at all. */}}
+{{with field .Data "Cfg"}}{{if .HasOrientation}}
+.gate-individual .company-orient-msg { margin: 0; }
+{{end}}{{end}}
+
+/* ⟦R-27 revision 3⟧ item 3: THE CHECKOUT CONFIRM BOX. This reuses
+   gate_vehicle_form's OUTBOUND instantiation verbatim (Compact true) —
+   see that define's own comments for why the per-row fields stay in the
+   DOM (occupant_* positional arrays) even where they are hidden here.
+   Nothing below touches that define's structure, only how its Compact
+   output is laid out on THIS page: the names are already given, in
+   full, by the "Checking out: A, B" notice directly above this form
+   (gate.html), so the per-row list itself is pure repetition here and
+   is dropped from view entirely — company/trade/position/phone/delete
+   were never shown in Compact mode to begin with (hiddenattr/omitted
+   in the define already). What is left — Vehicle #, Vehicle unknown,
+   Driver, Destination, the collapsed Deadline — is laid out as one
+   wrapping row instead of one-field-per-line, so the box (CONFIRM
+   button included) fits above the 1200px fold beside the roster half. */
+{{/* ⟦R-28, team-lead, 2026-09-16⟧ RETARGETED to `.vehicle-form-compact`
+     (gate_vehicle_form's own class, set whenever Compact is true) rather
+     than scoped to `.gate-individual` — the SAME compact box now renders
+     on the vehicle-mode page too (gate_roster_half is shared), and a
+     page-scoped selector would have missed it there while also risking
+     the OPPOSITE mistake if widened carelessly: `.gate-vehicle-page
+     .vehicle-form` alone would ALSO have matched that page's own
+     Compact-false arriving form and wrongly hidden ITS passenger list.
+     Keying on the form's own compact-ness, wherever it renders, is the
+     one selector that can never make either mistake. */}}
+.vehicle-form-compact .passenger-list,
+.vehicle-form-compact .passenger-list-empty { display: none; }
+.vehicle-form-compact fieldset {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3) var(--sp-4);
+}
+.vehicle-form-compact legend { flex-basis: 100%; }
+.vehicle-form-compact .field.open-box { flex: 1 1 15rem; margin: 0; }
+.vehicle-form-compact .field.open-box .add-hint:empty { display: none; }
+.vehicle-form-compact fieldset > p.field,
+.vehicle-form-compact fieldset > p.dest-field { flex: 1 1 13rem; margin: 0; }
+.vehicle-form-compact .deadline-compact { flex: 0 1 auto; margin: 0; }
+.vehicle-form-compact fieldset > .roster-time { flex: 0 1 auto; margin: 0; font-size: var(--fs-sm); }
+/* Phone widths (R2-L15-34): every item in the compact box may shrink to the
+   viewport and wrap. Without min-width:0 a flex item is floored at its
+   min-content — an open <details>' unwrapped legend/label (926px) or a
+   text input's intrinsic width — and the whole page widens past the
+   phone. Layout only; no item is hidden or reordered. */
+.vehicle-form-compact fieldset { min-width: 0; max-width: 100%; }
+.vehicle-form-compact fieldset > * { min-width: 0; max-width: 100%; }
+.vehicle-form-compact input, .vehicle-form-compact select { max-width: 100%; box-sizing: border-box; }
+.vehicle-form-compact details, .vehicle-form-compact details label,
+fieldset.time-control, fieldset.time-control legend,
+fieldset.time-control small,
+.roster-time, .roster-time label { min-width: 0; max-width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
+fieldset.time-control input { max-width: 100%; box-sizing: border-box; }
+.vehicle-form-compact .commit-block {
+  flex-basis: 100%; margin-top: var(--sp-2); padding-top: var(--sp-2);
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+}
+.vehicle-form-compact .commit-block .cancel-inline { font-size: var(--fs-lg); padding: var(--sp-3) var(--sp-4); }
+.vehicle-form-compact .commit-block .commit-note,
+.vehicle-form-compact .commit-block .commit-blocked { flex-basis: 100%; margin: 0; }
+/* ⟦R-28⟧ the compact box's own text/control sizing, on whichever page it
+   renders — previously inherited for free from `.gate-individual`'s
+   page-wide rule (below); now stated once, scoped to the box itself, so
+   the vehicle-mode page's compact box matches without making that WHOLE
+   page big-text (its arriving/inbound columns want density, not the
+   individual page's one-big-button treatment). */
+.vehicle-form-compact { font-size: var(--fs-lg); }
+.vehicle-form-compact input, .vehicle-form-compact select, .vehicle-form-compact button {
+  min-height: 2.75rem;
+}
+.vehicle-form-compact .commit-block .gate-commit { font-size: var(--fs-xl); }
+
+/* ⟦R-28, team-lead, 2026-09-16⟧ THE VEHICLE-MODE PAGE'S OWN SIZE. "rebuild
+   /gate/vehicle in the same R-27 visual language (big text, >=44px
+   controls, no prose, no page scroll at 1920x1200)" — team-lead's own
+   brief. Scoped to .gate-vehicle-page so the UNCHANGED group-page
+   behaviour this same file also serves (R-25's own accumulate rhythm,
+   pre-dating R-28) is not touched by width/size rules it never asked
+   for — only the vehicle-mode LAYOUT below is genuinely new; the forms
+   themselves (gate_vehicle_form, onsite_roster_table) are the same
+   defines the pre-R-28 page already used. */
+.gate-vehicle-page { font-size: var(--fs-lg); }
+.gate-vehicle-page input, .gate-vehicle-page select, .gate-vehicle-page button, .gate-vehicle-page .button {
+  min-height: 2.75rem;
+  font-size: var(--fs-lg);
+}
+/* THE TWO ARRIVING/INBOUND COLUMNS, side by side within .gate-work's
+   existing 35%-height budget (the base, un-scoped .gate-work rule above
+   — unchanged; this page never overrides it the way .gate-individual
+   does, so .gate-work keeps its own overflow-y:auto and simply scrolls
+   as a whole should the two columns together run long, the same "each
+   half scrolls in its own box, never the page" rule this file already
+   uses everywhere else). R-28's own layout: "VEHICLE ARRIVING (top
+   left) ... INBOUND (top right)". Wraps to one stacked column below a
+   width where two full columns no longer fit. */
+.vehicle-mode-top { display: flex; gap: var(--sp-4); flex-wrap: wrap; align-items: flex-start; }
+.vehicle-col { flex: 1 1 22rem; min-width: 0; }
+.vehicle-col h2 { margin-top: 0; font-size: var(--fs-xl); }
+.vehicle-col h3 { font-size: var(--fs-base); }
+/* The single-check-in form and the arriving gate_vehicle_form both sit
+   in the LEFT column now, narrower than before — trim their own
+   whitespace the same way .gate-individual already does for its
+   fieldset (never the controls' own size, which stays at the floor
+   above), so the column's own content fits without page scroll. */
+.vehicle-arriving-col fieldset { margin: var(--sp-2) 0; padding: var(--sp-2) var(--sp-3); }
+.vehicle-arriving-col .field { margin: var(--sp-1) 0; }
+/* ⟦R-28⟧ every pixel trimmed here is a pixel the runtime roster sizing
+   (gate_script) gives back to the roster below — the SAME reasoning
+   .gate-individual's own commit-block/legend trims already used.
+   ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 1: border-top: none is
+   the SAME "grey bar" removal .gate-individual's own commit-block rule
+   already does (see that rule's own comment) — the arriving form is now
+   the only other caller of this shared define with a long accumulated
+   list above the commit, and it gets the same treatment. */
+.vehicle-arriving-col .commit-block { margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: none; }
+.vehicle-arriving-col legend { display: none; }
+.vehicle-arriving-col .passenger-list-empty { margin: var(--sp-1) 0; }
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 1: CHECK IN VEHICLE reads
+   as large and primary, the SAME treatment .gate-individual's own
+   .big-checkin gets for the individual page's CHECK IN — "it is currently
+   small and dim" was the measured complaint. Scoped to THIS column's own
+   commit button specifically (never the roster half's or the checkout
+   box's, which keep their own existing sizing). */
+.vehicle-arriving-col .commit-block .gate-commit {
+  display: block; width: 100%; min-height: 3.5rem; font-size: var(--fs-xl); font-weight: 700;
+}
+/* item 1: "Add to database"/"Edit person" as small links beside the one
+   real button, not a second pair of buttons — reuses .gate-individual's
+   own .button-link look (gate.html's identical note-links), widened here
+   rather than duplicated, since the vehicle page wants the exact same
+   small-link treatment for the same two doors. */
+.vehicle-arriving-col .button-link {
+  background: none; border: none; border-left: none; padding: 0; min-height: 0;
+  font-size: var(--fs-sm); font-weight: 500; color: var(--ice); text-decoration: underline;
+  margin-left: var(--sp-2);
+}
+.vehicle-arriving-col .button-link:hover { color: var(--text); }
+/* The inbound board's own per-vehicle summary line, sized to the same
+   44px floor as every other consequential control here — gloves at -30,
+   same reasoning as the driver flag and every roster row. */
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 2: several inbound
+   vehicles scroll inside this box, never the page — a max-height bound
+   to the viewport (not the flex layout, which is the known-unreliable
+   percentage-through-nested-flex case this codebase's own JS roster
+   sizing already exists to work around) with its own scrollbar. Comfortably
+   short of the viewport so it can never BE the page's own scroll trigger. */
+.inbound-list { max-height: 46vh; overflow-y: auto; }
+.vehicle-inbound-col .inbound-row summary {
+  min-height: 2.75rem; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; cursor: pointer;
+}
+.vehicle-inbound-col .inbound-row { border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-1) var(--sp-2); margin: var(--sp-2) 0; }
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 2: "ONE LARGE button" —
+   the same .big-checkin/arriving-commit treatment, not the smaller 2.75rem
+   floor every OTHER control on this page gets. */
+.vehicle-inbound-col .inbound-form .button-primary {
+  display: block; width: 100%; min-height: 3.5rem; font-size: var(--fs-xl); font-weight: 700;
+}
+/* THE ONE-CLICK ARRIVAL'S RESULT LINE — the one thing on this page that
+   is ABOUT an action just taken, so it earns being the biggest text on
+   the page for the one render right after it, same as the individual
+   page's own "Picked:" confirmation line does for its action. */
+.arrived-notice { font-size: var(--fs-xl); font-weight: 650; }
+/* ⟦R-28 revision 2, team-lead, 2026-09-16⟧ item 3: the compact hold-out
+   line sits under the big green result at normal weight/size — it is a
+   fact to read, not the headline the arrival itself is. */
+.arrived-notice .held-out-compact { font-size: var(--fs-base); font-weight: 400; margin: var(--sp-1) 0 0; }
+
+/* ---- print. Safety-critical: read the comments before editing.
+
+   Print re-declares the LIGHT palette at a specificity that beats BOTH dark
+   blocks above, so a box whose browser prefers dark still prints black on
+   white. Without this the muster prints white text on a white sheet.
+
+   Screen-only chrome (the top bar, action buttons, page nav, the mode
+   banner's screen colouring) is hidden on paper; the mode label itself
+   still prints as plain text so a physical sheet is traceable.
+
+   .incomplete-warn is DELIBERATELY EXCLUDED from the chrome-hiding rule
+   (F1) — a printed roster that is short people must say so on the paper
+   itself and not only on screen. .not-tracked is excluded for the same
+   reason (U3).
+
+   .away is NOT excluded, and this paragraph exists to record the reversal.
+   From 2026-08-20 until 2026-08-21 .away printed too, "like the F1
+   warning", on the reasoning that a sheet omitting the crew out at a pad
+   was a sheet that failed to account for everyone. That reasoning was
+   sound for a sheet claiming to account for EVERYONE and is wrong for the
+   sheet this actually is. Ruling from James, who works this site and owns
+   the liability question: people away at an uncontrolled destination are
+   tracked by this post but are NOT this operation's responsibility during
+   an evacuation — they are the destination operator's. The printed sheet
+   is scoped by RESPONSIBILITY, so their names do not go on it. .away is
+   hidden on paper; .away-scope (print-only, the exact inverse of .away)
+   states the count and whose they are in its place, so the fact survives
+   onto the paper while the duty is disclaimed. The names stay on screen.
+   (2026-10-01, James: print = roster only — the count stand-in is off the
+   paper too; see the roster-only rule at the end of the print block.)
+
+   What did NOT change, because it is a different question: .incomplete-warn
+   still prints. It warns that THIS operation's own check-in did not finish,
+   so the sheet may be short people who ARE ours. It is unrelated to the
+   uncontrolled-destination handoff above. ---- */
+/* ---- W8 (James, 2026-10-03: mobile & accessibility sweep, M-20..M-25).
+        Everything here is geometry only. ----
+   M-22 TOUCH TARGETS. Every control a finger lands on is >= 44px tall:
+   the base button/input/select rules above moved 2.25rem -> 2.75rem, and the
+   rows below cover what those rules do not reach — the footer/top-bar nav
+   links (were 15-26px), text-link buttons, <summary> disclosures and
+   checkbox labels. The gate pages already ran at 2.75rem, so the one-screen
+   gate layout at 1920x1080 is unchanged apart from the few link-style rows
+   that gained height (measured: evidence/fork/w8). */
+.pagenav a, .chip-mode a, .an-site-link, .an-crumb a {
+  display: inline-flex; align-items: center; min-height: 2.75rem;
+}
+.pagenav a, .note-links a { padding-inline: var(--sp-1); }
+/* F14 (James, 2026-10-04: R5 L10-3/L15): the two shortest nav links ("gate",
+   "trips") measured 42 px wide, under the 44 px target. Width floor, centred
+   so the word does not sit left in its box. */
+.pagenav a, .chip-mode a { min-width: 2.75rem; justify-content: center; box-sizing: border-box; }
+.note-links a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.gate-individual .button-link, .gate-vehicle-page .button-link, .vehicle-arriving-col .button-link, .button-link {
+  min-height: 2.75rem; display: inline-flex; align-items: center;
+}
+details > summary { min-height: 2.75rem; box-sizing: border-box; padding-block: .65rem; }
+label:not(.picker-row):has(> input[type=checkbox]), label:not(.picker-row):has(> input[type=radio]) {
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2.75rem;
+}
+a.button, .button { min-height: 2.75rem; display: inline-flex; align-items: center; }
+
+/* L15-07 (James, 2026-10-03: "countdown at 15 px vs the 40 px token"): the
+   inbound row's countdown on /gate/vehicle takes the same countdown token as
+   every other countdown. Supersedes the R-28 rev 2/3 "normal font" size
+   (weight and colour rules there are kept). */
+.inbound-row .inbound-countdown {
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-countdown); line-height: 1.1; font-weight: 650;
+  overflow-wrap: anywhere; max-width: 100%;
+}
+/* A-04: text for assistive tech only (an empty <th> names nothing). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+/* The tick-and-name rows (orientation): the name cell is the tap target. */
+.grid td > label[for] { display: flex; align-items: center; min-height: 2.75rem; width: 100%; cursor: pointer; }
+
+/* M-20/M-21: a wide table lives in .table-wrap (overflow-x), which is a
+   keyboard-focusable region (tabindex + aria-label in the markup) so a
+   keyboard user can scroll it. A grid table keeps a sane minimum so its
+   columns read at 320px inside that scroll box instead of squeezing. */
+.table-wrap:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+
+/* M-23: on a phone the sticky top bar used to be the WHOLE screen (65-78%
+   at 320x568 with one overdue alert) and covered the page's primary buttons.
+   Below 40rem only the ALERTS stay stuck, compacted; the site/post
+   chips scroll away with the page (they are not alerts). display:contents
+   lets .topbar-alerts stick against the body rather than a header that is
+   itself scrolling. The alert lines are unchanged in content (FIX13: two
+   items per colour on a phone, then "+N more") — "never collapsed, never
+   scrolled" (banner.html) still holds. */
+@media (max-width: 40rem) {
+  .topbar { display: contents; }
+  /* ⟦FIX8⟧ the datetime-local box (~262 px) sat as a flex item after the
+     radio and "It actually happened at:" inside the inline-flex label and
+     ran 18 px past a 320 px screen; the label wraps and the box takes its
+     own line, never wider than the fieldset. */
+  fieldset.time-control label { flex-wrap: wrap; max-width: 100%; }
+  fieldset.time-control input[type=datetime-local] { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+  .topbar-strip { padding: var(--sp-1) var(--sp-3); gap: var(--sp-1) var(--sp-2); }
+  .topbar-strip .chip { padding: var(--sp-1) var(--sp-2); gap: var(--sp-1) var(--sp-2); flex-wrap: wrap; }
+  .topbar-alerts {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+    padding: var(--sp-1) var(--sp-3);
+  }
+  /* James, 2026-10-04 (R-fix2 FH, D28-adjacent L15): the stuck alert strip was
+     206-227 px (26-40% of a phone screen). FIX13 (2026-10-05): it is now the
+     two compact lines, each at most TWO text lines on a phone: the first 2
+     vehicles of the colour and "+N more" (the wide-screen items 3-6 and
+     their "+N more" give way to the phone one), and an id longer than 8
+     characters is ellipsised — its start, the vehicle-first rule (Q-FH1),
+     is what shows. Measured at 320-414 px with three 16-24 character ids,
+     two-digit counts and "+128 more" (fix13-run/stress.js): 3 is one item
+     too many for two lines at 320 behind "VERIFY BY RADIO:"; 2 at 8ch
+     fits. ⟦was: ONE full alert row clamped to two lines with its
+     acknowledge button floated beside it (R6-1.8a lead/verdict spans, FIX5's
+     ≤ 340 px tightening), plus a one-line count; the button and the long
+     count sentence are gone with the row⟧ */
+  .topbar-alerts .notice { margin: 0 0 var(--sp-1); font-size: var(--fs-sm); padding: 2px var(--sp-2); line-height: 1.3; }
+  .topbar-alerts .alert-line { margin: 0 0 var(--sp-1); padding-block: 2px; line-height: 1.4; }
+  .topbar-alerts .alert-line-kind { letter-spacing: 0; margin-right: 2px; }
+  .topbar-alerts .alert-items li + li::before { margin-left: .3em; }
+  /* ≤ 340 px: "VERIFY BY RADIO:" (152 px) plus an 8ch item and the dot
+     that follows it was 3 px over the line, so the first item fell to line
+     2 and the "+N more" to line 3. FIX5's tightening, applied to the label. */
+  @media (max-width: 21.25rem) { .topbar-alerts .alert-line-kind { letter-spacing: -0.01em; } }
+  .topbar-alerts .alert-item-wide, .topbar-alerts .alert-more-wide { display: none; }
+  .topbar-alerts .alert-items .alert-more-phone { display: inline; }
+  .topbar-alerts .alert-items code { display: inline-block; max-width: 8ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+  /* FIX15: the LOST SIGNAL line's phone form, and the no-strip pages'
+     .topbar-signal box stuck like .topbar-alerts (only while it holds a
+     line — empty, it is display:none). */
+  .lost-signal .lost-wide { display: none; }
+  .lost-signal .lost-phone { display: inline; }
+  .topbar-signal {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: var(--shadow);
+    padding: var(--sp-1) var(--sp-3);
+  }
+  .topbar-signal .notice { margin: 0 0 var(--sp-1); font-size: var(--fs-sm); padding: 2px var(--sp-2); line-height: 1.3; }
+  .topbar-signal .alert-line { margin: 0 0 var(--sp-1); padding-block: 2px; line-height: 1.4; }
+  .topbar-signal .alert-line-kind, .topbar-alerts .lost-signal .alert-line-kind { letter-spacing: 0; margin-right: 2px; }
+  html:has(.topbar-signal .notice) { scroll-padding-top: var(--topbar-h, 8rem); }
+  /* a focused/anchored field must not land under the stuck alerts. The
+     fallback is the static worst case; page_close's script replaces it with
+     the measured height (--topbar-h) when scripting is on. */
+  html:has(.topbar-alerts .notice) { scroll-padding-top: var(--topbar-h, 8rem); }
+}
+
+/* F14 (James, 2026-10-04: R5 L15, WCAG 2.2 SC 2.4.11 Focus Not Obscured): above
+   the phone breakpoint the whole top bar is sticky (79 px at 1366+, 131 px at
+   768 where the chips wrap, more with an alert row), and scroll-padding-top was
+   `auto`, so Tab / Shift+Tab scrolled a focused control to the very top edge,
+   underneath the bar. The offset below tracks the bar: page_close measures the
+   sticky element (ResizeObserver, so a wrapping chip row or a new alert row
+   moves it) into --topbar-h. With scripting OFF the 9rem fallback (144 px)
+   clears the tallest measured no-alert bar (131 px at 768). */
+/* Phone, no alert row: the only stuck thing is the empty .topbar-alerts shell
+   (~9 px of padding), still enough to clip a control scrolled to the edge. */
+html { scroll-padding-top: var(--topbar-h, 1rem); }
+@media (min-width: 40.0625rem) {
+  html { scroll-padding-top: var(--topbar-h, 10rem); } /* ⟦fix4 H: was 9rem (144 px) — the no-alert bar measured 149 px at 641⟧ */
+  /* F14 residue (R6-5, fix4 H 2026-10-05): with scripting OFF and an alert
+     row open the whole bar is far taller than 9rem — measured 210-325 px
+     (L05) and up to 371 px at 641 / 330 at 768 / 255 at 1024 / 233 at
+     1366-1920 with a long VERIFY row — so up to 19 of 37 Shift+Tab stops on
+     /gate/vehicle landed under it. The phone rule above has had this
+     :has() counterpart; this one is sized to the measured worst case per
+     width band, with margin.
+     FIX13 (2026-10-05): re-measured for the compact strip, JS off,
+     /gate/vehicle, worst case = both lines at six 16-24 character ids,
+     two-digit counts and "+128 more" (fix13-run/wide.js): 285 px at
+     641-700, 267 at 768-1023, 215 at 1024-1920 (actual alerts: 261 / 219 /
+     167). Plus the long-post-name nav wrap (+52 px at 641, FIX5) the
+     fallbacks are 22rem (352) / 19rem (304) / 15rem (240). ⟦was 27rem /
+     25rem / 18rem — sized for the old full alert row, 400 px at 641⟧ */
+  html:has(.topbar-alerts .notice) { scroll-padding-top: var(--topbar-h, 19rem); }
+}
+/* FIX5 (R7 L05 residue B): with scripting OFF and NO alert row, a long post
+   name ("2P Ice Road Entrance") wraps the nav at the narrow end of this band
+   — the bar measured 201 px on /gate and /gate/vehicle at 641-643 px (149 px
+   from 644 up, 131 from 900), over the 10rem (160 px) fallback, so Shift+Tab
+   stops landed partly under it. The fallback is width-aware: 14rem (224 px)
+   across 641-767 px, where the nav can wrap a third time; 10rem above. The
+   alert-row rule (html:has(…)) is more specific and still wins. The same
+   name with an alert row open measured a 400 px bar at 641 — exactly the
+   25rem fallback, one /gate/vehicle stop 1 px under it — so that rule gets
+   the same band treatment: 27rem (432 px) across 641-767. */
+@media (min-width: 40.0625rem) and (max-width: 47.9375rem) {
+  html { scroll-padding-top: var(--topbar-h, 14rem); }
+  html:has(.topbar-alerts .notice) { scroll-padding-top: var(--topbar-h, 22rem); } /* ⟦FIX13: was 27rem⟧ */
+}
+@media (min-width: 64rem) {
+  html:has(.topbar-alerts .notice) { scroll-padding-top: var(--topbar-h, 15rem); } /* ⟦FIX13: was 18rem⟧ */
+}
+
+/* D28 (James, 2026-10-04: R-fix2 FH): the standalone text links that act as
+   navigation — the "note" links, the link inside a notice (FIX13: the
+   strip's vehicle items and "+N more" among them), a table cell's "correct
+   this record" — measured 15-42
+   px at 768 and 18-23 px at 1920 (L15). They reach a 44 px target by
+   VERTICAL PADDING on the inline box, which grows the hit area without
+   growing the line (no layout shift in the sticky bar or the 1920x1080 gate
+   monitor layout). 15 px = (44 - 14) / 2, the worst case being a 14 px line. */
+.note a, .notice a, .table-wrap td a, .an-live a { padding-block: 15px; }
+
+/* FIX7: the live line's countdown. Plain text in the note's own colour (no
+   animation, no blink); the number is a fixed 2ch of tabular figures so
+   "9" and "10" occupy the same width and the line never shifts as it ticks. */
+.an-countdown-n { display: inline-block; min-width: 2ch; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* Sticky roster/group heads must not cover the row a keyboard user lands on
+   (L01): the scrollers reserve the head's height. */
+.roster-table { scroll-padding-top: 3.5rem; }
+.roster-table input[type=checkbox], .picker-row input[type=checkbox] { scroll-margin-top: 3.5rem; }
+
+@media print {
+  :root,
+  :root:not([data-theme="light"]),
+  :root[data-theme="dark"],
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-2: #FFFFFF;
+    --line: #000000;
+    --control-line: #000000;
+    --text: #000000;
+    --text-muted: #333333;
+    --ice: #000000;
+    --critical: #000000;
+    --warning: #000000;
+    --ok: #000000;
+    --critical-bg: #FFFFFF;
+    --warning-bg: #FFFFFF;
+    --ok-bg: #FFFFFF;
+    --ice-bg: #FFFFFF;
+    --on-ice: #FFFFFF;
+    --shadow: none;
+  }
+  body { background: #FFFFFF; color: #000000; }
+  .page { max-width: none; padding: 0; }
+  /* A printed page (the muster sheet) is a point-in-time roster, not a live
+     alert surface — the banner excludes itself from print everywhere. */
+  .topbar, .banner-notice, .actions, nav.screen-only, .pagenav, .gate-keys { display: none; }
+  /* FIX16a: the live muster's per-name "last seen" link is a screen affordance. */
+  .last-seen-cell { display: none; }
+  .mode-live, .mode-reprint, .mode-snapshot { background: none; border: none; padding: 0; }
+  .incomplete-warn { background: none; border: 2px solid #000; }
+  /* 2026-08-21 (James's ruling — see the header note above). The away list
+     is the ONE section on this sheet that is deliberately hidden on paper:
+     those people are tracked here but are the destination operator's
+     responsibility, not this operation's, and this sheet is scoped to the
+     people this operation must account for. This REVERSES the 2026-08-20
+     line here, which gave .away a printed 2px solid box and justified it
+     as "prints, like the F1 warning". That comparison is exactly what was
+     wrong: F1 is about OUR people going unaccounted for; this is about
+     somebody else's. */
+  .away { display: none; }
+  /* ...and its print-only counterpart, which carries the fact without the
+     names: how many went out to an uncontrolled destination and whose they
+     are. Solid box like the other panels — it is a statement the sheet is
+     making, not a gap in what it knows. */
+  /* (2026-10-01: .away-scope no longer prints — see the roster-only rule
+     at the end of this block. Its paper box is gone with it.) */
+  /* U3: the third category prints, and prints DASHED — "nothing is
+     watching" has to survive onto a one-colour sheet as a shape, not a hue.
+     Like .incomplete-warn it is deliberately absent from the chrome-hiding
+     rule above. It is NOT covered by the away ruling: see muster.html's
+     note on the not-tracked section — an unknown about a person who left on
+     OUR vehicle from OUR site is not a handoff to anybody. */
+  .not-tracked { background: none; border: 2px dashed #000; }
+  /* D-6, 2026-08-21: the fourth population PRINTS, names and all, and is
+     deliberately absent from the chrome-hiding rule above for the same
+     reason .incomplete-warn and .not-tracked are — it is about people THIS
+     operation is responsible for. Apply James's away test ("we are not
+     responsible for them, they are Conoco's problem") and it answers the
+     other way here: this post authorised the departure, holds the manifest,
+     and is where a search would start.
+     SOLID, not dashed: .not-tracked is dashed because nothing is watching,
+     and something IS watching a run between two posts. The two must not
+     converge on one box form — that distinction is the only one that
+     survives a one-colour sheet. */
+  .on-road { background: none; border: 2px solid #000; }
+  /* SYNC-HONESTY (2026-09-09): the freshness line PRINTS, healthy or not,
+     and is deliberately absent from the chrome-hiding rule above for the
+     same reason .incomplete-warn is — it says what this sheet may not know.
+     The top bar that carries the sync chip on screen is hidden two rules
+     up; this block is what the paper gets instead. A plain 1px rule when
+     healthy, .incomplete-warn's 2px solid when degraded or unavailable —
+     the F1 shape, because it is the F1 statement: records may be missing. */
+  /* (2026-10-01: superseded — the sync block is screen-only now; see the
+     roster-only rule at the end of this block.) */
+  .card, .summary, fieldset { background: none; box-shadow: none; }
+  a { color: #000; }
+  /* The gate restack (2026-09-11) caps .gate-work and the roster's own
+     picker boxes to a share of the viewport and scrolls the rest away —
+     correct on screen, and exactly wrong on paper: overflow clipped by
+     max-height would silently drop names off a printed sheet. /gate is
+     not the print surface (/muster is), but nothing stops a browser's own
+     Ctrl+P from trying, so this is print-only and defensive: undo the
+     flex/scroll geometry back to plain flow, where every row is on the
+     page whether or not it fit a screen. */
+  .gate-layout, .gate-work, .gate-roster,
+  .gate-roster form, .gate-roster .picker, .gate-roster .picker-section, .gate-roster .picker-groups {
+    display: block; max-height: none; height: auto; overflow: visible;
+  }
+
+  /* U3 print composition. The sheet is the primary output, not a screenshot
+     of the screen. */
+  @page { margin: 14mm 12mm; }
+  /* Sheet identity, printed as the sheet's masthead: which site, live or
+     reprint, and when this paper was produced. Deliberately redundant with
+     the mode box below it — identity is the one thing a sheet being read
+     aloud during an evacuation cannot afford to be coy about.
+
+     MEASURED, and the reason this is a static block rather than a running
+     header: a `position: fixed` element that Firefox would repeat on every
+     printed page renders INSIDE the page content box, so it either lands on
+     top of the first lines of every page after the first, or (offset up into
+     the @page margin) is clipped away entirely and prints nowhere at all —
+     which is what a -10mm offset actually did here. Overlapping a name on a
+     muster sheet is worse than not repeating the line, so this prints once
+     and the browser's own page header carries <title> (which is
+     "Muster — <site> — Site Control") onto every page after it. */
+  .sheet-runner {
+    display: block;
+    font-family: var(--font-data); font-size: 8pt; letter-spacing: .04em;
+    border-bottom: 1px solid #000; padding-bottom: 1mm; margin-bottom: 3mm;
+  }
+  /* Keep a crew and its heading together, and never strand a category label
+     from the heading it introduces.
+
+     MEASURED: `break-after: avoid` on a heading does nothing in Firefox
+     (it has never implemented it), so a company heading left alone at the
+     foot of a page cannot be fixed that way. `break-inside: avoid` on the
+     CONTAINER does work, and degrades correctly — a company too big for one
+     page still breaks normally rather than being pushed off the sheet. Both
+     are declared: the avoid-inside is what actually holds today, the
+     avoid-after is what will hold when Firefox catches up. */
+  .company, .offsite, .trade, .pad { break-inside: avoid; }
+  /* 2026-10-01, MEASURED on the ice-pad cluster once the roster began on
+     page 1: with `break-inside: avoid` on the whole .summary block, Chromium
+     pushes a summary table taller than a page to a FRESH page before
+     breaking it — page 1 printed the runner line and nothing else, and the
+     98-name table started on page 2. The summary group is the whole roster
+     at a post where every crew folds, so it is held together per ROW
+     instead: no name is split across a page, and the table starts where
+     the sheet does. */
+  .summary tr { break-inside: avoid; }
+  /* M-14: the category label that a split sheet must not lose. Kept
+     deliberately quiet — this is a reminder for a reader holding page 2,
+     not a second heading competing with the real one. */
+  .page-cat { display: block; margin: 0 0 1mm; }
+  .page-cat-tag {
+    font-family: var(--font-data); font-size: 7.5pt; letter-spacing: .08em;
+    border: 1px solid #000; padding: 0 1mm;
+  }
+  /* M-46 (James, 2026-10-03): the same label, as a <thead> row, on the
+     summary and not-tracked tables — MEASURED on the pad, pages 4-6 of a
+     7-8 page sheet were the summary table continuing with no category on
+     them at all. A header group repeats on every page a table continues
+     onto; a <p> above the table does not. */
+  .page-cat-row { display: table-row; }
+  .page-cat-row th { border: 0; padding: 0 0 1mm; text-align: left; font-weight: normal; background: none; }
+  /* M-5: the reprint's checked-out-since block prints — it is about whether
+     the names on this paper are the names on the original sheet — and is
+     kept with its heading. */
+  .checked-out-since { background: none; border: 1px solid #000; break-inside: avoid; }
+  /* Keep one vehicle's crew with its own heading, exactly as .pad does for
+     a pad's crew. Declared separately from the list above rather than added
+     to it: .on-road itself is deliberately NOT in either list, because a
+     section too big for one page must break normally rather than be pushed
+     off the sheet. */
+  .road-trip { break-inside: avoid; }
+  h1, h2, h3, h4, .cat-line { break-after: avoid; }
+  .names { columns: 2; }
+  .checked-out-names { columns: 1; } /* M-5: name and time on one line (see the screen rule) */
+  .note { color: #333; }
+
+  /* James, 2026-10-01: print = roster only (no sync verdicts, no
+     counts/summary pages). MEASURED before this rule on the ice-pad
+     cluster: page 1 was the sheet header and the per-peer sync verdicts,
+     page 2 the headcount block, and the roster began on page 3. Those
+     blocks are all screen-only now — the live /muster page keeps every one
+     of them — and the paper is the runner line, then the names:
+       .sheet-head          the h1, mode box and its copy, print controls
+       .sync-scope(-bad)    per-peer sync verdicts (reverses SYNC-HONESTY's
+                            "prints unconditionally", for paper only)
+       .tally               the headcount block, overlap row included
+       .away-scope          the away COUNT stand-in (a count; the away
+                            names have not printed since 2026-08-21)
+       .offsite-unprinted   the "Not on site" heading when nothing under it
+                            prints (no not-tracked rows)
+       .summary-lede,
+       .road-lede,
+       .muster-aside        copy that explains or points at "the total
+                            above", which is no longer on the paper.
+                            small.muster-aside too: the notes are
+                            <small class="note …">, and the base rule
+                            `small.note { display: block }` (0,1,1) beats a
+                            bare class (0,1,0) — MEASURED, the notes kept
+                            printing until this selector was added.
+     NOT hidden, deliberately: .incomplete-warn (F1 — a check-in in flight
+     whose people may be missing from the names), the RESTORED legend and
+     tags, .on-road and .not-tracked (people this operation is responsible
+     for, named). */
+  .sheet-head, .sync-scope, .sync-scope-bad, .tally, .away-scope, .offsite-unprinted,
+  .summary-lede, .road-lede, .muster-aside, small.muster-aside { display: none; }
+
+  /* Every page says which sheet it is and which page it is, so a loose page
+     can be put back. muster.html passes page_open a "SheetID" (the same
+     words as .sheet-runner) and the first rule below sets it as
+     --muster-sheet-id on the root, which the margin boxes inherit. It is
+     rendered HERE, inside the one shared stylesheet, because every page
+     carries exactly one <style> (TestEveryPageRendersTheSharedShellExactlyOnce)
+     and the <html> tag must stay the literal `<html lang="en">` the theme
+     middleware rewrites (theme.go). html/template escapes the value as a
+     CSS string — behind the literal "Muster · " prefix, because
+     html/template filters (#ZgotmplZ) a CSS string that OPENS with an
+     interpolation; measured. Pages that pass no SheetID get no rule.
+     Margin boxes print OUTSIDE the content box, so — unlike the position:fixed runner measured above — they cannot
+     land on a name. Page 1 already opens with .sheet-runner, so its left
+     box is suppressed rather than printing the line twice. A browser that
+     ignores margin boxes prints its own header (<title>) instead. */
+  {{with .SheetID}}:root { --muster-sheet-id: "Muster · {{.}}"; }{{end}}
+  @page {
+    @top-left { content: var(--muster-sheet-id, ""); font-family: var(--font-data); font-size: 8pt; }
+    @top-right { content: "page " counter(page) " of " counter(pages); font-family: var(--font-data); font-size: 8pt; }
+  }
+  @page :first { @top-left { content: none; } }
+}
+</style>
+{{end}}

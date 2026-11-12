@@ -1,0 +1,238 @@
+{{template "page_open" (dict
+  "Title" (printf "%s — Dispatch analytics" .Title)
+  "Main" "an-page rp-page"
+  "Data" .)}}
+{{/* dispatch_reports.html — GET /analytics/reports… (dispatch_reports.go). Read-only: every
+     form here is a GET form that works with scripting off; nothing is
+     recorded by loading or submitting it. Links go only to other analytics
+     pages, so the dispatch host shows no console link. The headcount chart
+     is inline SVG drawn by the server — no script, no CDN — and its figures
+     are repeated in a table below it. */}}
+<h1><span class="an-crumb"><a href="/analytics">Dispatch analytics</a> /{{if .Kind}} <a href="/analytics/reports">Reports</a> /{{end}}</span>
+  {{.Title}}
+  <small class="note">read-only · as at {{.RenderedAt}}</small></h1>
+
+{{if not .Kind}}
+<p class="note">Every post's records that have reached {{.Cfg.PostName}}. A day runs midnight to midnight; every time is the one
+the recording post's own clock gave it.</p>
+{{end}}
+
+{{if or (not .Kind) (eq .Kind "daily")}}
+<section class="card rp-form" aria-labelledby="rp-daily-h">
+<h2 id="rp-daily-h">{{if .Kind}}Choose a site and day{{else}}<a href="/analytics/reports/daily">Daily site report</a>{{end}}</h2>
+{{if not .Kind}}<p class="note">Peak and low headcount with times, sign-ins and sign-outs, trips, runs past their allowance and missed sign-outs for one site and day.</p>{{end}}
+<form method="get" action="/analytics/reports/daily" class="search-grid" aria-label="Daily site report">
+  <p class="field"><label class="field-label" for="rp-daily-site">Site</label>
+    <select id="rp-daily-site" name="site">{{range .Sites}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}</select></p>
+  <p class="field"><label class="field-label" for="rp-daily-date">Day</label>
+    <input type="date" id="rp-daily-date" name="date" value="{{.Form.Date}}" placeholder="yyyy-mm-dd"></p>
+  <p class="actions"><button type="submit" class="button-primary">Show daily report</button></p>
+</form>
+</section>
+{{end}}
+
+{{if or (not .Kind) (eq .Kind "hours")}}
+<section class="card rp-form" aria-labelledby="rp-hours-h">
+<h2 id="rp-hours-h">{{if .Kind}}Choose dates{{else}}<a href="/analytics/reports/hours">Contractor hours by company</a>{{end}}</h2>
+{{if not .Kind}}<p class="note">Hours on site per person and per company over a date range. Visits with no recorded sign-out are flagged and listed apart, never counted.</p>{{end}}
+<form method="get" action="/analytics/reports/hours" class="search-grid" aria-label="Contractor hours by company">
+  <p class="field"><label class="field-label" for="rp-hours-from">From</label>
+    <input type="date" id="rp-hours-from" name="from" value="{{.Form.From}}" placeholder="yyyy-mm-dd"></p>
+  <p class="field"><label class="field-label" for="rp-hours-to">To (inclusive)</label>
+    <input type="date" id="rp-hours-to" name="to" value="{{.Form.To}}" placeholder="yyyy-mm-dd"></p>
+  <p class="field"><label class="field-label" for="rp-hours-site">Site</label>
+    <select id="rp-hours-site" name="site"><option value="">All sites</option>{{range .Sites}}<option value="{{.Value}}"{{if and (eq $.Kind "hours") .Checked}} selected{{end}}>{{.Label}}</option>{{end}}</select></p>
+  <p class="actions"><button type="submit" class="button-primary">Show hours</button></p>
+</form>
+</section>
+{{end}}
+
+{{if or (not .Kind) (eq .Kind "weekly")}}
+<section class="card rp-form" aria-labelledby="rp-weekly-h">
+<h2 id="rp-weekly-h">{{if .Kind}}Choose a week{{else}}<a href="/analytics/reports/weekly">Weekly roll-up</a>{{end}}</h2>
+{{if not .Kind}}<p class="note">One week, Monday to Sunday, across every site: visits, people, companies, trips, runs past their allowance and missed sign-outs.</p>{{end}}
+<form method="get" action="/analytics/reports/weekly" class="search-grid" aria-label="Weekly roll-up">
+  <p class="field"><label class="field-label" for="rp-weekly-week">Any day in the week</label>
+    <input type="date" id="rp-weekly-week" name="week" value="{{.Form.Week}}" placeholder="yyyy-mm-dd" aria-describedby="rp-weekly-help">
+    <small class="note" id="rp-weekly-help">The week runs Monday to Sunday.</small></p>
+  <p class="actions"><button type="submit" class="button-primary">Show week</button></p>
+</form>
+</section>
+{{end}}
+
+{{if or (not .Kind) (eq .Kind "headcount")}}
+<section class="card rp-form" aria-labelledby="rp-head-h">
+<h2 id="rp-head-h">{{if .Kind}}Choose a site and dates{{else}}<a href="/analytics/reports/headcount">Headcount over time</a>{{end}}</h2>
+{{if not .Kind}}<p class="note">Hourly headcount for one site as a chart and a table, up to {{.MaxDays}} days at a time.</p>{{end}}
+<form method="get" action="/analytics/reports/headcount" class="search-grid" aria-label="Headcount over time">
+  <p class="field"><label class="field-label" for="rp-head-site">Site</label>
+    <select id="rp-head-site" name="site">{{range .Sites}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}</select></p>
+  <p class="field"><label class="field-label" for="rp-head-from">From</label>
+    <input type="date" id="rp-head-from" name="from" value="{{.Form.From}}" placeholder="yyyy-mm-dd"></p>
+  <p class="field"><label class="field-label" for="rp-head-to">To (inclusive)</label>
+    <input type="date" id="rp-head-to" name="to" value="{{.Form.To}}" placeholder="yyyy-mm-dd" aria-describedby="rp-head-help">
+    <small class="note" id="rp-head-help">At most {{.MaxDays}} days.</small></p>
+  <p class="actions"><button type="submit" class="button-primary">Show headcount</button></p>
+</form>
+</section>
+{{end}}
+
+{{if .Problems}}
+<div class="notice notice-warn" id="rp-problems" role="alert"><strong>NO REPORT</strong> — fix this and try again:
+  <ul>{{range .Problems}}<li>{{.}}</li>{{end}}</ul></div>
+{{end}}
+{{if .Err}}
+<div class="notice notice-critical"><strong>REPORT UNAVAILABLE</strong> — {{.Err}}. Nothing is shown rather than a partial report.</div>
+{{end}}
+
+{{with .Daily}}
+<section class="rp-result" aria-labelledby="rp-daily-result" data-report="daily">
+<h2 id="rp-daily-result">{{.SiteName}} — {{.Day}}</h2>
+<p class="csv-link"><a href="{{$.CSVHref}}" data-csv="daily">Download CSV<span class="sr-only"> of this daily report</span></a> <small class="note">(the figures shown here)</small></p>
+{{if .Partial}}<p class="note">Today: figures run to {{$.RenderedAt}}, not to midnight.</p>{{end}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Daily figures (scrolls sideways)">
+<table class="rp-table rp-figures">
+  <tbody>
+  <tr><th scope="row">Peak headcount</th><td data-rp="peak">{{.Peak}}</td><td>first reached at {{.PeakAt}}</td></tr>
+  <tr><th scope="row">Lowest headcount</th><td data-rp="low">{{.Low}}</td><td>first reached at {{.LowAt}}</td></tr>
+  <tr><th scope="row">On site at midnight (start of day)</th><td data-rp="start">{{.StartCount}}</td><td></td></tr>
+  <tr><th scope="row">Sign-ins</th><td data-rp="sign-ins">{{.SignIns}}</td><td>visits that began this day</td></tr>
+  <tr><th scope="row">Sign-outs</th><td data-rp="sign-outs">{{.SignOuts}}</td><td>{{.CheckOuts}} signed out at the gate, {{.LeftTrip}} left aboard a trip or road-work run</td></tr>
+  <tr><th scope="row">Trips out</th><td data-rp="trips-out">{{.TripsOut}}</td><td>dispatched from here to a destination</td></tr>
+  <tr><th scope="row">Trips in</th><td data-rp="trips-in">{{.TripsIn}}</td><td>arrivals recorded here, other than gate check-ins</td></tr>
+  <tr><th scope="row">Turned back</th><td data-rp="turned-back">{{.TurnedBack}}</td><td>trips from here that arrived back here</td></tr>
+  <tr><th scope="row">Working on the road</th><td data-rp="road-work">{{.RoadWork}}</td><td>road-work runs sent out</td></tr>
+  <tr><th scope="row">Runs past their allowance</th><td data-rp="late">{{len .Late}}</td><td>left this day, from or to this site (listed below)</td></tr>
+  <tr><th scope="row">Missed sign-outs</th><td data-rp="missed">{{len .Missed}}</td><td>{{.MissedLabel}}</td></tr>
+  <tr><th scope="row">Lost-signal gaps</th><td data-rp="signal">{{.Signal.Value}}</td><td>{{if .Signal.Available}}{{.Signal.Detail}} (<a href="/history/signal">lost-signal history</a>){{else}}<strong>Not available</strong>: {{.Signal.Why}}.{{end}}</td></tr>
+  </tbody>
+</table>
+</div>
+<p><a href="{{.HeadcountLink}}">Hour-by-hour headcount for this day</a></p>
+{{if .UnknownTimes}}<p class="note"><strong>{{.UnknownTimes}} visit(s)</strong> at this site have a time that could not be resolved and are left out of the headcount.</p>{{end}}
+
+<h3 id="rp-daily-late">Runs past their allowance — {{len .Late}}</h3>
+{{if .Late}}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rp-daily-late">
+<table class="rp-table search-results">
+  <thead><tr><th scope="col">Truck</th><th scope="col">Run</th><th scope="col">Allowance</th><th scope="col">Due</th><th scope="col">What happened</th></tr></thead>
+  <tbody>{{range .Late}}<tr><td><code>{{.Vehicle}}</code></td><td>{{.Route}}</td><td>{{.Allowance}}</td><td>{{.Due}}</td><td><strong>{{.Outcome}}</strong></td></tr>{{end}}</tbody>
+</table>
+</div>
+{{else}}<p class="note">No run from or to this site that left this day went past its allowance.</p>{{end}}
+<p class="note">Due = the time out the sending post entered (or, with none entered, when it recorded the dispatch) plus the allowance; a run is counted on the day it left, as in the <a href="/history/overdue">overdue history</a>. An arrival time is the receiving post's
+clock, so a late verdict compares two posts' clocks. Cancelled runs are not judged.{{if .Unjudged}} {{.Unjudged}} run(s), at any site, could not be judged: their due or arrival time did not resolve here.{{end}}</p>
+
+<h3 id="rp-daily-missed">Missed sign-outs — {{len .Missed}}</h3>
+{{if .Missed}}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rp-daily-missed">
+<table class="rp-table">
+  <thead><tr><th scope="col">Person</th><th scope="col">Signed in</th><th scope="col">Record closed by their return at</th></tr></thead>
+  <tbody>{{range .Missed}}<tr><td>{{.Person}}</td><td>{{.In}}</td><td>{{.ClosedAt}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+{{else}}<p class="note">No visit here was closed by a return this day.</p>{{end}}
+</section>
+{{end}}
+
+{{with .Hours}}
+<section class="rp-result" aria-labelledby="rp-hours-result" data-report="hours">
+<h2 id="rp-hours-result">Hours on site, {{.Range}}{{with .SiteName}} — {{.}}{{else}} — all sites{{end}}</h2>
+<p class="csv-link"><a href="{{$.CSVHref}}" data-csv="hours">Download CSV<span class="sr-only"> of these hours, flagged visits included</span></a> <small class="note">(the figures shown here)</small></p>
+<p class="note">Counted: visits that began in the range and ended with a recorded departure (a sign-out at the gate, or
+leaving aboard a trip), each counted whole. Visits with no recorded sign-out are <strong>flagged</strong> below and are
+<strong>not</strong> in any total.</p>
+<p class="rp-total"><strong>Total counted: <span data-rp="total-hours">{{.Total}}</span></strong> ({{.TotalDecimal}} h) over {{.TotalVisits}} visit(s){{if .Flagged}} · <strong>{{len .Flagged}} flagged, not counted</strong>{{end}}</p>
+{{if .Companies}}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Hours by company and person (scrolls sideways)">
+<table class="rp-table search-results rp-hours">
+  <thead><tr><th scope="col">Company / person</th><th scope="col">Hours</th><th scope="col">Decimal</th><th scope="col">Visits counted</th><th scope="col">Flagged</th></tr></thead>
+  {{range .Companies}}
+  <tbody data-rp-company="{{.Company}}">
+  <tr class="rp-company"><th scope="row">{{.Company}} — company total</th><td data-rp="company-hours">{{.Hours}}</td><td>{{.Decimal}}</td><td>{{.Visits}}</td><td>{{if .Flagged}}<strong>{{.Flagged}}</strong>{{else}}0{{end}}</td></tr>
+  {{range .People}}<tr><th scope="row" class="rp-person">{{.Name}}</th><td>{{.Hours}}</td><td>{{.Decimal}}</td><td>{{.Visits}}</td><td>{{if .Flagged}}<strong>{{.Flagged}}</strong>{{else}}0{{end}}</td></tr>{{end}}
+  </tbody>
+  {{end}}
+</table>
+</div>
+{{else}}<p class="note">No visit began in this range.</p>{{end}}
+
+<h3 id="rp-hours-flagged">Flagged, not counted — {{len .Flagged}}</h3>
+{{if .Flagged}}
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rp-hours-flagged">
+<table class="rp-table search-results" data-rp="flagged">
+  <thead><tr><th scope="col">Person</th><th scope="col">Company</th><th scope="col">Site</th><th scope="col">In</th><th scope="col">Closed</th><th scope="col">Why not counted</th></tr></thead>
+  <tbody>{{range .Flagged}}<tr><td>{{.Person}}</td><td>{{.Company}}</td><td>{{.Site}}</td><td>{{.In}}</td><td>{{.Out}}{{with .Bound}}<br><small class="note">{{.}} (an upper bound)</small>{{end}}</td><td><strong>{{.Why}}</strong></td></tr>{{end}}</tbody>
+</table>
+</div>
+{{else}}<p class="note">Every visit in the range has a recorded departure.</p>{{end}}
+</section>
+{{end}}
+
+{{with .Weekly}}
+<section class="rp-result" aria-labelledby="rp-weekly-result" data-report="weekly">
+<h2 id="rp-weekly-result">Week of {{.Range}}</h2>
+<p class="csv-link"><a href="{{$.CSVHref}}" data-csv="weekly">Download CSV<span class="sr-only"> of this week</span></a> <small class="note">(the figures shown here)</small></p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Week totals (scrolls sideways)">
+<table class="rp-table rp-figures">
+  <tbody>
+  <tr><th scope="row">Visits</th><td data-rp="visits">{{.Visits}}</td><td>visits that began this week, every site</td></tr>
+  <tr><th scope="row">People</th><td data-rp="people">{{.People}}</td><td>different people with a visit this week</td></tr>
+  <tr><th scope="row">Companies</th><td data-rp="companies">{{.Companies}}</td><td>different companies recorded at check-in</td></tr>
+  <tr><th scope="row">Trips dispatched</th><td data-rp="dispatched">{{.Dispatched}}</td><td>to a destination, every site</td></tr>
+  <tr><th scope="row">Trips arrived</th><td data-rp="arrived">{{.Arrived}}</td><td>at their destination</td></tr>
+  <tr><th scope="row">Turned back</th><td data-rp="turned-back">{{.TurnedBack}}</td><td>arrived back where they started</td></tr>
+  <tr><th scope="row">Working on the road</th><td data-rp="road-work">{{.RoadWork}}</td><td>road-work runs sent out</td></tr>
+  <tr><th scope="row">Runs past their allowance</th><td data-rp="late">{{.Late}}</td><td>left this week</td></tr>
+  <tr><th scope="row">Missed sign-outs</th><td data-rp="missed">{{.Missed}}</td><td>visits closed by the person's return with no sign-out</td></tr>
+  <tr><th scope="row">Signal outages</th><td data-rp="signal">{{.Signal.Value}}</td><td>{{if .Signal.Available}}{{.Signal.Detail}} (<a href="/history/signal">lost-signal history</a>){{else}}<strong>Not available</strong>: {{.Signal.Why}}.{{end}}</td></tr>
+  </tbody>
+</table>
+</div>
+<h3 id="rp-weekly-sites">By site</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rp-weekly-sites">
+<table class="rp-table search-results">
+  <thead><tr><th scope="col">Site</th><th scope="col">Visits</th><th scope="col">People</th><th scope="col">Companies</th><th scope="col">Trips out</th><th scope="col">Trips in</th><th scope="col">Turned back</th><th scope="col">Road work</th><th scope="col">Past allowance</th><th scope="col">Missed sign-outs</th></tr></thead>
+  <tbody>{{range .Sites}}<tr data-rp-site="{{.Site}}"><th scope="row"><a href="/analytics/reports/daily?site={{.Site}}">{{.Name}}</a></th><td>{{.Visits}}</td><td>{{.People}}</td><td>{{.Companies}}</td><td>{{.TripsOut}}</td><td>{{.TripsIn}}</td><td>{{.TurnedBack}}</td><td>{{.RoadWork}}</td><td>{{.Late}}</td><td>{{.Missed}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+<p class="note">A run between two sites counts once in the total and once at each end. Missed sign-outs at a camp site are
+normal (people stay for weeks); this post is not told other posts' site types.{{if .Unjudged}} {{.Unjudged}} run(s) could not
+be judged: their arrival time did not resolve here.{{end}}{{if .UnknownTimes}} {{.UnknownTimes}} visit(s) have a sign-in time that
+could not be resolved and are left out.{{end}}</p>
+</section>
+{{end}}
+
+{{with .Headcount}}
+<section class="rp-result" aria-labelledby="rp-head-result" data-report="headcount">
+<h2 id="rp-head-result">{{.SiteName}} — headcount, {{.Range}}</h2>
+<p class="csv-link"><a href="{{$.CSVHref}}" data-csv="headcount">Download CSV<span class="sr-only"> of this headcount</span></a> <small class="note">(the figures shown here)</small></p>
+<p>Highest: <strong data-rp="max">{{.Peak}}</strong> people, first in the hour from {{.PeakAt}}.</p>
+<figure class="rp-chart">
+<div class="table-wrap" tabindex="0" role="region" aria-label="Headcount chart (scrolls sideways)">
+<svg class="rp-svg" role="img" aria-labelledby="rp-chart-title rp-chart-desc" viewBox="0 0 {{.Width}} {{.Height}}" width="{{.Width}}" height="{{.Height}}">
+  <title id="rp-chart-title">Highest headcount in each hour at {{.SiteName}}</title>
+  <desc id="rp-chart-desc">One bar per hour, {{len .Points}} hours. The highest is {{.Peak}} people. The same figures are in the table below.</desc>
+  {{range .GridLines}}<line class="rp-grid" x1="{{$.Headcount.PlotLeft}}" x2="{{$.Headcount.Width}}" y1="{{.Y}}" y2="{{.Y}}"/><text class="rp-axis" x="{{$.Headcount.AxisX}}" y="{{.Y}}" text-anchor="end" dominant-baseline="middle">{{.Label}}</text>{{end}}
+  {{range .Points}}{{if .DayStart}}<line class="rp-day" x1="{{.X}}" x2="{{.X}}" y1="{{$.Headcount.PlotTop}}" y2="{{$.Headcount.TickBottom}}"/><text class="rp-axis" x="{{.X}}" y="{{$.Headcount.DayLabelY}}">{{.DayLabel}}</text>{{end}}{{if .H}}<rect class="rp-bar" x="{{.X}}" y="{{.Y}}" width="6" height="{{.H}}" rx="1"><title>{{.Label}}: highest {{.Peak}}, {{.AtStart}} at the start of the hour</title></rect>{{end}}{{end}}
+  <line class="rp-base" x1="{{.PlotLeft}}" x2="{{.Width}}" y1="{{.PlotBottom}}" y2="{{.PlotBottom}}"/>
+</svg>
+</div>
+<figcaption class="note">Each bar is the highest number of people on site at any moment in that hour.</figcaption>
+</figure>
+{{if .UnknownTimes}}<p class="note"><strong>{{.UnknownTimes}} visit(s)</strong> at this site have a time that could not be resolved and are left out.</p>{{end}}
+<h3 id="rp-head-table">Hour by hour</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="rp-head-table">
+<table class="rp-table" data-rp="hourly">
+  <thead><tr><th scope="col">Hour starting</th><th scope="col">On site at the start</th><th scope="col">Highest in the hour</th></tr></thead>
+  <tbody>{{range .Points}}<tr><th scope="row">{{.Label}}</th><td>{{.AtStart}}</td><td>{{.Peak}}</td></tr>{{end}}</tbody>
+</table>
+</div>
+</section>
+{{end}}
+
+{{with .Elapsed}}<p class="note">Worked out in {{.}} from the records, as at {{$.RenderedAt}}.</p>{{end}}
+
+{{/* Dispatch reads only — links stay inside the analytics pages. */}}
+<nav class="pagenav"><a href="/analytics">all sites</a> · <a href="/analytics/reports"{{if not .Kind}} aria-current="page"{{end}}>reports</a> · <a href="/search">search records</a></nav>
+{{template "page_close" .}}

@@ -1,0 +1,196 @@
+{{template "page_open" (dict
+  "Title" (printf "Amend trip — %s — Site Control" (sitelabel .SiteID))
+  "Main" "narrow"
+  "Data" .)}}
+{{/* trip_amend.html — the officer-facing TRIP amendment surface (W9a,
+     item 15; trip-fact-correction-v1 rev 4).
+
+     THE CONFIRMATION BLOCK IS PER-FACT AND COMPUTED AT RENDER TIME
+     (visible-failure-v1 §5). FOUR shapes here, one more than the person and
+     company surfaces have, and the extra one is §3.4's:
+
+       - an assertion that STANDS and displaced nothing stays terse;
+       - an assertion that STANDS and DID displace one carries rendering 2:
+         the winning officer is told, in words, whose correction theirs took
+         the place of;
+       - a SUPERSEDED assertion says so, names the post whose assertion
+         stands, AND carries the value the record now shows — the half that
+         tells the officer what IS true rather than merely that they lost;
+       - an assertion NEGATED BY THE STRUCTURAL UNION (§3.4) carries the
+         invariant-override sentence. This one is not a variation on the
+         others: the removal WON its per-fact contest, so a bare "Recorded."
+         would be the honest answer to the wrong question, and the officer
+         would walk away believing the person is off the record.
+
+     ⚠ THE ADVERSE REGISTER BELONGS TO THE LOSING SIDE. "superseded" appears
+     on the superseded arm and NOWHERE ELSE on this page — not in the
+     rendering-2 wording, not in the form's own copy. A surface that says it
+     everywhere trains officers past it, and a test that greps for it becomes
+     blind to an inverted renderer.
+
+     ⚠ KEEP EACH NOTICE IN ONE UNBROKEN TEXT RUN between the words an
+     assertion reads: a tag inside the phrase inserts a space and breaks the
+     assertion against a CORRECT build.
+
+     ⚠ THE UNSIGHTED-REMOVAL CONFIRM EXISTS ONLY ON THE WARNING. The ordinary
+     form carries no `confirm_unsighted` control, because a control that is
+     always there is not a confirmation of anything — and the cry-wolf
+     control asserts its ABSENCE on a sighted person's removal.
+
+     NO <style> block (the shared partial owns styling), no script. */}}
+<h1>Amend a trip's record <small>({{sitelabel .SiteID}})</small></h1>
+
+{{if .Outcome}}
+  {{if .Outcome.NotThisKind}}
+  {{/* ⟦D22, fix2-fj 2026-10-04⟧ a key naming an event of ANOTHER kind
+       here: nothing to confirm (the T-199 / R-080 arm). Never the
+       green "Recorded" of someone else's record. */}}
+  <div class="notice notice-warn"><strong>NOTHING TO CONFIRM.</strong> This link names <code>{{.Outcome.Key}}</code>, which is not a trip or arrival correction recorded at this post. Opening it recorded nothing. To correct a trip or arrival, use the form below.</div>
+  {{else if .Outcome.Failed}}
+  <div class="notice notice-warn">Recorded, but the <strong>outcome could not be determined</strong> — check the record before trusting this correction</div>
+  {{else}}
+    {{range .Outcome.Rows}}
+      {{if .Overridden}}
+  <div class="notice notice-warn">Your removal of {{.PersonName}} is overridden: {{.PersonName}} is the recorded driver — the record shows them aboard. Name the person who actually drove, and the removal will stand.</div>
+      {{else if .Effective}}
+        {{if .SupersededPost}}
+          {{/* L09 T-164 again: an occupant correction that displaces an earlier
+               one (a removal after a kept-aboard add, say) must still say which
+               way the record moved — the same direction sentence as the terse arm. */}}
+          {{if eq .SupersededPost "this post"}}
+  <div class="notice notice-ok">Recorded. Your correction of the {{.Label}} now stands: it takes the place of an earlier correction made at {{.SupersededPost}}.{{if .PersonName}} The record now shows: {{.PersonName}} {{if .Removed}}is removed from the trip's list{{else}}is on the trip's list (aboard){{end}}.{{end}}</div>
+          {{else}}
+  <div class="notice notice-ok">Recorded. Your correction of the {{.Label}} now stands: it takes the place of an earlier correction made at {{.SupersededPost}}.{{if .PersonName}} The record now shows: {{.PersonName}} {{if .Removed}}is removed from the trip's list{{else}}is on the trip's list (aboard){{end}}.{{end}} Whoever made that one is not being told by this screen — radio it through.</div>
+          {{end}}
+        {{else if .PersonName}}
+          {{/* L09 T-164: a removal and an addition used to read identically
+               ("Effective: who was aboard (Name)"); the direction is said. */}}
+          {{if .Removed}}
+  <div class="notice notice-ok">Recorded. Effective: {{.PersonName}} is removed from the trip's list.</div>
+          {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.PersonName}} is on the trip's list (aboard).</div>
+          {{end}}
+        {{else}}
+  <div class="notice notice-ok">Recorded. Effective: {{.Label}}.</div>
+        {{end}}
+      {{else}}
+        {{if .WinnerAtThisPost}}
+  <div class="notice notice-warn">Your correction of the {{.Label}} was recorded but is <strong>superseded</strong> by a later correction made at this post; the record shows {{.WinnerValue}}. Your value is kept in the record and will not display. The value that stands was authored here — correct it again on this form.</div>
+        {{else}}
+  <div class="notice notice-warn">Your correction of the {{.Label}} was recorded but is <strong>superseded</strong> by a correction made at {{.WinnerPost}}; the record shows {{.WinnerValue}}. Your value is kept in the record and will not display. A change that must take effect can only be authored at {{.WinnerPost}} — radio it through.</div>
+        {{end}}
+      {{end}}
+    {{end}}
+  {{end}}
+{{end}}
+
+{{/* ⟦D-80, 2026-09-05⟧ §7's WARNING-WITH-CONFIRM BLOCK IS REMOVED.
+     ⟦was: {{if .Unsighted}} … "NOT RECORDED YET — ⟨names⟩: no return has reached
+     this post … Confirm they were never aboard." + a hidden re-send form
+     carrying confirm_unsighted=1 {{end}}⟧
+     Nobody is marked never aboard. An unsighted removal is now a REFUSAL,
+     rendered in the REFUSED slot below with the same facts the warning
+     named; there is nothing to confirm past. */}}
+
+{{/* L09 T-165: POST /arrivals/amend has no form on this page, so its refusals
+     must not promise "your entry is still on the form below". */}}
+{{if .Error}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.Error}}. Nothing was recorded{{if not .ArrivalAmend}}; your entry is still on the form below{{end}}.</div>
+{{end}}
+
+{{if .InputError}}
+<div class="notice notice-critical"><strong>REFUSED</strong> — {{.InputError}}. Nothing was recorded{{if not .ArrivalAmend}}; your entry is still on the form below{{end}}. Check the id against the record — this post is working, and re-sending the same id will be refused again.</div>
+{{end}}
+
+{{if .InternalError}}
+<div class="notice notice-critical"><strong>NOT RECORDED</strong> — this post could not complete the correction. Nothing was written to the record. The fault has been logged here; try again, and if it repeats, radio it through.</div>
+{{end}}
+
+{{/* L09 T-141: person ids were visible on no page, so this surface could only
+     be fed from a database dump. When the page is opened for a named trip
+     (the trips-detail "correct this record" link, or ?trip_id=), the record
+     as it stands NOW is shown with each person's id beside the name. Read
+     through EffectiveTrip like every other surface; nothing here is a form. */}}
+{{with .Record}}
+<section class="card" data-trip-record="{{.TripID}}">
+  <h2>What the record says now</h2>
+  <p>Trip <code>{{.TripID}}</code> — vehicle <code>{{.Vehicle}}</code>, {{.State}}, destination {{.Destination}}.</p>
+  <p>Driver: <strong>{{.Driver.Name}}</strong> <code>{{.Driver.ID}}</code></p>
+  <p>Aboard ({{len .Aboard}}), driver included:</p>
+  <ul class="names">{{range .Aboard}}<li>{{.Name}} <code>{{.ID}}</code></li>{{end}}</ul>
+  <p class="note">The ids are shown so they can be copied into the fields below.</p>
+</section>
+{{end}}
+
+<section class="card">
+  <form method="post" action="/trips/amend">
+    <div class="field">
+      <label class="field-label" for="trip-amend-trip-id">Trip id (the record being corrected)</label>
+      <input id="trip-amend-trip-id" name="trip_id" value="{{.TripID}}" required>
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-driver">Driver (person id)</label>
+      <input id="trip-amend-driver" name="driver_person_id" value="{{.Driver}}">
+      {{/* James, 2026-10-03 (NEW-b): the previous driver never vanishes. */}}
+      {{/* Fix round 3 (FINDINGS-R5 F10; F-L06-2): the help no longer coaches a "Remove" for a previous
+           driver who was never aboard — on an open trip that driver has had no sighting since the trip left,
+           so D-80 always refuses it. ⟦was: "… If they were never aboard, put them in "Remove from the trip's
+           list" in the same correction. If they are already recorded on site …"⟧ */}}
+      <p class="note">On an open trip, naming a new driver keeps the previous driver on the trip's list as a
+        passenger, so they stay on the road list at both posts. If they are already recorded on site
+        somewhere, or aboard another open trip, the correction is refused and says where they are and what to
+        do. Only the trip's origin or destination may change its driver or add anyone aboard.</p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-occupants-add">Aboard after all (person ids)</label>
+      <input id="trip-amend-occupants-add" name="occupants_add" value="{{.OccupantsAdd}}">
+    </div>
+    <div class="field">
+      {{/* ⟦D-80⟧ ⟦was: label "Never aboard (person ids)"⟧ */}}
+      <label class="field-label" for="trip-amend-occupants-remove">Remove from the trip's list (person ids)</label>
+      <input id="trip-amend-occupants-remove" name="occupants_remove" value="{{.OccupantsRemove}}">
+      <p class="note">Refused for anyone this post has not seen since the trip left — this list would be the
+        only place they are accounted for. Nobody is marked never aboard: a person leaves the list by being
+        checked in, at the destination when the vehicle arrives there, or back at the post it left from if it
+        comes back.</p>
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-vehicle">Vehicle, as entered</label>
+      <input id="trip-amend-vehicle" name="vehicle_entered" value="{{.Vehicle}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-dest-kind">Destination kind (controlled / uncontrolled)</label>
+      <input id="trip-amend-dest-kind" name="destination_kind" value="{{.DestKind}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-dest-value">Destination (post id, or pad id)</label>
+      <input id="trip-amend-dest-value" name="destination_value" value="{{.DestValue}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-deadline">Travel allowance, minutes (controlled destinations only)</label>
+      <input id="trip-amend-deadline" name="deadline_minutes" value="{{.DeadlineMinutes}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-cargo">Cargo note</label>
+      <input id="trip-amend-cargo" name="cargo_note" value="{{.CargoNote}}">
+    </div>
+    <div class="field">
+      <label class="field-label" for="trip-amend-clear">Un-set a field (cargo note only)</label>
+      <input id="trip-amend-clear" name="clear" value="{{.Clear}}">
+    </div>
+    <div class="actions">
+      <button type="submit" class="button-primary">Correct this record</button>
+    </div>
+    <p class="note">A field left blank changes nothing. Corrections append to the record; the earlier
+      values are kept and stay readable in the trip's chain, never erased. Nothing here moves anyone
+      on or off a muster: who is shown on site is corrected on the visit side.</p>
+    <p class="note">The destination, its travel allowance and the vehicle can only be corrected once
+      the trip is completed — while it is open they drive the running timer, the destination's board
+      and the arrival matching.</p>
+  </form>
+</section>
+
+<nav class="pagenav"><a href="/trips">operator console</a> · <a href="/trips/detail">trips detail</a> ·
+  <a href="/search">search</a> · <a href="/status">status page</a></nav>
+
+{{template "page_close" .}}

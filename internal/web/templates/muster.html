@@ -1,0 +1,868 @@
+{{template "page_open" (dict
+  "Title" (printf "Muster — %s — Site Control" (sitelabel .SiteID))
+  "Main" ""
+  "SheetID" (printf "%s · %s · %s" (sitelabel .SiteID) (or (and (eq .Mode "live") "LIVE") (and (eq .Mode "snapshot") "PRINTED FROM LIVE") "REPRINT") .RenderedAt)
+  "Data" .)}}
+{{/* THE MUSTER SHEET. This page is read aloud during an evacuation, so the
+     PRINT path is the primary output and the screen is the secondary one.
+     Read the print block in _styles.html before changing anything here.
+
+     Reading order, top to bottom, is the design:
+
+       1  what this sheet is        — LIVE, PRINTED FROM LIVE or REPRINT,
+                                      this site, and the time it was
+                                      produced. A sheet on a table during an
+                                      evacuation must be able to say which
+                                      sheet it is — and must never claim a
+                                      guarantee its own route cannot honour
+                                      (V-02: the fresh-snapshot route used
+                                      to stamp itself REPRINT and print the
+                                      reprint's point-in-time promise).
+       2  what it does not know     — the SYNC freshness line (how long since
+                                      this post last completed a sync with
+                                      each peer — SYNC-HONESTY, 2026-09-09),
+                                      then the F1 incomplete-check-in warning;
+                                      both FIRST, because they qualify every
+                                      number below them.
+       3  the headcount             — one block that answers "who is on site
+                                      right now" and names, in the same
+                                      breath, everybody who is NOT counted in
+                                      that number and why.
+       4  ON SITE                   — the roster, company then trade,
+                                      plus the below-minimum summary group,
+                                      which belongs HERE: those people are on
+                                      site and ARE in the total.
+       5  ON THE ROAD               — the people this post put on the road and
+                                      has not heard back about: dispatched
+                                      from here to a peer post, no arrival
+                                      recorded. Between ON SITE and NOT ON
+                                      SITE because that is what they are —
+                                      not here, but unambiguously ours. NOT in
+                                      the on-site total; PRINTED, names and
+                                      all (D-6). Added 2026-08-21, when the
+                                      sheet had three populations and showed
+                                      two.
+       6  NOT ON SITE               — away at an uncontrolled destination, and
+                                      not tracked. Two sibling sections, never
+                                      one nested inside the other: they mean
+                                      genuinely different things — and, since
+                                      2026-08-21, they PRINT differently too:
+                                      the away names are screen-only, the
+                                      not-tracked names print. See the
+                                      "NOT ON SITE" comment further down for
+                                      why that is not an inconsistency.
+
+     ON PAPER (James, 2026-10-01: print = roster only (no sync verdicts,
+     no counts/summary pages)) items 1-3 are screen-only. The printed sheet
+     is the runner line, then the roster — 4, 5 and the not-tracked half of
+     6 — plus the F1 warning and the RESTORED legend, which are kept because
+     they are about whether the NAMES are complete and true, not counts.
+     Every later page carries the runner's words and "page N of M" in its
+     @page header (_styles.html).
+
+     C7: the persistent deadline banner rides the shared top bar, which
+     excludes itself from @media print.
+
+     Structural hooks for tests are data-* attributes (data-muster-section,
+     data-company-group, data-trade-group, data-tally-count). NOTHING in
+     the stylesheet selects on them — that is the point: a restyle can never
+     silently change what a structural test proves, and a class name in the
+     stylesheet can never stand in for a rendered element (F19). Style with
+     the classes; assert on the attributes. */}}
+
+{{/* Print-only sheet identity: which site, which kind of sheet, and when
+     it was produced.
+
+     CORRECTED 2026-08-21 (V-11). This comment used to describe the sheet
+     runner as "fixed-position in print, which Firefox repeats at the head
+     of EVERY printed page, so page 3 of a long roster still says which
+     sheet it belongs to". That design was ABANDONED and the comment
+     outlived it — the stylesheet's own MEASURED note in the print block
+     records why: a `position: fixed` element that Firefox would repeat
+     renders INSIDE the page content box, so it either lands on top of the
+     first lines of every page after the first, or (offset up into the @page
+     margin) is clipped away and prints nowhere at all.
+
+     What actually ships: this line prints ONCE, at the head of page 1, and
+     (since 2026-10-01) the print block's @page margin boxes carry the same
+     words, plus "page N of M", onto every page after it — margin boxes sit
+     OUTSIDE the content box, so they cannot overlap a name the way the
+     fixed element did. A browser that ignores margin boxes falls back to
+     its own page header, which carries <title> — "Muster — <site> — Site
+     Control". Overlapping a name on a
+     muster sheet is worse than not repeating the line. Page 2 losing the
+     category heading is a real, separately-logged gap; it is not fixed by
+     this element and this comment must not imply that it is. */}}
+{{/* THREE modes, and each label is the one its own route can support
+     (V-02). The middle one used to be missing: /muster/print with no
+     ?visits= stamped the sheet REPRINT and carried reprint's copy, which
+     is false on a route that re-queries the open visits on every GET — and
+     false ON PAPER, because .mode-detail is re-coloured inside the print
+     block rather than hidden by it. */}}
+<div class="sheet-runner">Muster · {{sitelabel .SiteID}} · {{if eq .Mode "live"}}LIVE{{else if eq .Mode "snapshot"}}PRINTED FROM LIVE{{else}}REPRINT{{end}} · {{.RenderedAt}}</div>
+{{/* James, 2026-10-01: print = roster only (no sync verdicts, no
+     counts/summary pages). A roster that now starts on page 1 runs straight
+     onto page 2, 3, … so EVERY page must say which sheet it belongs to and
+     which page it is — a loose page on a table during an evacuation has to
+     be identifiable. The runner above prints once, on page 1; the
+     "SheetID" passed to page_open at the top of this file carries the SAME
+     words, as --muster-sheet-id on the root, to the print block's @page
+     margin boxes (_styles.html), which print them at the head of every
+     later page beside "page N of M". Words only — no count rides on it
+     (the ruling removed the counts). */}}
+
+{{/* James, 2026-10-01: print = roster only (no sync verdicts, no
+     counts/summary pages). This whole header — the h1, the mode box and its
+     explanatory copy, the print controls — is screen-only now (the print
+     block hides .sheet-head). On paper the runner line above and the @page
+     header on later pages say which sheet this is; nothing else precedes
+     the roster. */}}
+<header class="sheet-head">
+  <h1>Muster <small>({{sitelabel .SiteID}})</small></h1>
+
+  {{if eq .Mode "live"}}
+  <div class="mode-live" data-muster-mode="live">
+    <p class="mode-headline"><strong>LIVE</strong> <span class="sheet-time">as at {{.RenderedAt}}</span></p>
+    <p class="mode-detail">Grouped by current company/trade, resolved through the merges recorded against those records.
+    This view can change as people check in/out or as reference data is merged. Print it to freeze it.</p>
+  </div>
+  <div class="actions">
+    <a class="button button-primary" href="{{.PrintHref}}">Print this muster</a>
+    <a class="button" href="/muster/at" data-muster-at-link>Muster at a time…</a>{{/* FIX16a */}}
+  </div>
+
+  {{else if eq .Mode "snapshot"}}
+  {{/* The fresh-snapshot sheet. It says WHICH moment it froze, and it
+       makes no claim about reproducing itself in general — that claim
+       belongs to the reprint route below, which names its visit set. */}}
+  <div class="mode-snapshot" data-muster-mode="snapshot">
+    <p class="mode-headline"><strong>PRINTED FROM LIVE</strong> <span class="sheet-time">snapshot taken {{.RenderedAt}}</span></p>
+    <p class="mode-detail">This sheet froze the site as it stood at the time above, and is grouped exactly as each person was recorded at check-in — never re-resolved
+    against later merges of reference data. The names it prints are the names recorded at check-in, so a name corrected afterwards does not rewrite or re-order these lines; a person the
+    roster could not name then shows their roster name as it reads now, or their id. It does not update: anyone who has checked in or out since is not reflected here. To get
+    this exact sheet back later, use the reprint link below; loading this page again produces a NEW snapshot of a possibly different roster. The exception sections below are
+    current as at the time above, not frozen — they name each person as the roster reads now, so one person can appear on this sheet under two names; see each one.</p>
+  </div>
+  <div class="actions">
+    {{/* A JS-off print control (V-02). The browser's print dialog cannot be
+         opened without a script, so the honest control here is the
+         instruction plus the page already being the print sheet — and the
+         one-click button is served `hidden` and revealed by the script,
+         the same pattern U2 established and asserts on /trips and /gate: a
+         JS-off browser must never see a control that looks live and does
+         nothing. Before this the ONLY print control on the print page was
+         `onclick="window.print()"`, dead with scripting off, on
+         contract-locked ground. */}}
+    <p class="print-instruction">Press <kbd>Ctrl</kbd>+<kbd>P</kbd> (<kbd>&#8984;P</kbd> on a Mac) to print this sheet.</p>
+    <button type="button" class="button-primary" id="print-sheet" hidden>Print</button>
+    <p><a href="{{.PrintHref}}">Reprint this exact sheet</a> — bookmark or copy that link and it will
+    reproduce these same people, whatever happens on site afterwards. Anyone who has checked out by then is still named on it,
+    marked as checked out with the time (James, 2026-10-03).</p>
+  </div>
+
+  {{else}}
+  <div class="mode-reprint" data-muster-mode="reprint">
+    <p class="mode-headline"><strong>REPRINT</strong> <span class="sheet-time">sheet produced {{.RenderedAt}}</span></p>
+    {{/* The point-in-time sentence lives HERE and only here. This route was
+         given an explicit visit set, so it really does reproduce the same
+         roster however often it is printed. */}}
+    {{/* James, 2026-10-03 (M-5 / M-19): the sentence here used to read "This
+         reproduces the same roster no matter when it is printed again." It
+         was FALSE — buildMuster lists open visits, so a person who checked
+         out after the sheet was minted vanished from the reprint in silence
+         (MEASURED, L10 M-19 twice). The ruling keeps the route and names the
+         departed instead of dropping them (the "checked out since" block
+         under "On site"), so the sentence now says exactly that. */}}
+    <p class="mode-detail">Grouped exactly as it was recorded at check-in (point-in-time snapshot), never re-resolved against later merges of reference data. This sheet names the same
+    visits every time it is printed: nobody who checked in afterwards is added, and anyone on the original sheet who has checked out since is named under “On site” with the time,
+    rather than dropped. The names it prints are the names recorded at check-in, so a name corrected afterwards does not rewrite or re-order these
+    lines. A person the roster could not name at check-in shows their roster name as it reads now, or their id, and that one line can still change. The exception sections
+    below are current as at the time above, not frozen — they name each person as the roster reads now, so one person can appear on this sheet under two names; see each one.</p>
+    {{/* M-22 (James, 2026-10-03): a hand-edited link naming one visit id
+         twice. Each id is read once (muster.go); the sheet says so rather
+         than silently repairing the link or counting one person twice. */}}
+    {{if .DuplicateIDs}}<p class="mode-note" data-duplicate-ids="{{.DuplicateIDs}}"><strong>This link named {{.DuplicateIDs}} visit id(s) more than once.</strong> Each person is listed once; the link itself was not one this post produced.</p>{{end}}
+  </div>
+  <div class="actions">
+    <p class="print-instruction">Press <kbd>Ctrl</kbd>+<kbd>P</kbd> (<kbd>&#8984;P</kbd> on a Mac) to print this sheet.</p>
+    <button type="button" class="button-primary" id="print-sheet" hidden>Print</button>
+  </div>
+  {{end}}
+</header>
+{{if ne .Mode "live"}}
+<script>
+  /* Progressive enhancement only: one click instead of Ctrl+P. The
+     instruction above is what a scripting-off browser uses, and it is not
+     hidden when this runs — both routes to paper stay visible, because the
+     button is the convenience and the instruction is the guarantee. */
+  (function () {
+    var b = document.getElementById('print-sheet');
+    if (!b) return;
+    b.hidden = false;
+    b.addEventListener('click', function () { window.print(); });
+  })();
+</script>
+{{end}}
+
+{{/* SYNC — how fresh the data behind this sheet is (SYNC-HONESTY,
+     2026-09-09). Records made at another post reach this sheet only
+     through sync, so a sheet that cannot say when it last heard from its
+     peers cannot say what it might be missing — and this is the document
+     that may reach an insurer after an incident. It PRINTS, unconditionally
+     (healthy included, like the away-scope line: the sheet states its
+     boundary even when the boundary is clear), because the top bar that
+     carries the chip on screen is hidden on paper. It reuses the SAME
+     per-peer verdict and the SAME summary the bar's chip and /'s sync
+     section render (syncstatus.go, syncStatusView.Summary) — one
+     vocabulary, never a second one invented here. The engine-not-wired
+     case is an explicit refusal, never silence and never "ok" (web.go's
+     buildSyncSection). It sits FIRST among the "what it does not know"
+     items because, like F1 below it, it qualifies every number under it.
+     The BLOCK adds no number and regroups nothing — it is a truthfulness
+     signal beside the roll. The SHEET's numbers, though, do depend on
+     peer-authored rows (measured in review: on the road over-stated and
+     not tracked under-stated while a peer's arrival is undelivered), which
+     is exactly why the footnote names which counts a stale peer can move;
+     it must never claim the sheet is unaffected. data-sync-* attributes
+     are the test hooks; nothing in the stylesheet selects on them (F19). */}}
+{{/* James, 2026-10-01: print = roster only (no sync verdicts, no
+     counts/summary pages). This block is now SCREEN-ONLY: the print block
+     hides .sync-scope, reversing SYNC-HONESTY's "it PRINTS,
+     unconditionally" for paper. On screen it is unchanged, and the top
+     bar's chip still carries the same verdict on every page. */}}
+<section class="sync-scope{{if or (not .Sync.Available) .Sync.Degraded}} sync-scope-bad{{end}}" data-muster-section="sync" data-sync-summary="{{.Sync.Summary}}">
+  <p class="cat-line"><span class="cat-tag{{if or (not .Sync.Available) .Sync.Degraded}} cat-tag-warn{{end}}">SYNC — {{.Sync.Summary}}</span></p>
+  {{if not .Sync.Available}}
+  <p><strong>Sync status unavailable</strong> — the replication engine is not wired into this page. This is
+  NOT a report that sync is healthy: this sheet cannot tell whether records made at another post have reached it.</p>
+  {{else if not .Sync.Peers}}
+  <p>No peer posts are configured. This sheet is built from this post's own records only.</p>
+  {{else}}
+  <ul class="sync-peers">
+  {{range .Sync.Peers}}<li data-sync-peer="{{.SiteID}}" data-sync-health="{{if .Healthy}}ok{{else}}degraded{{end}}"><strong>{{sitelabel .SiteID}}:</strong> {{.Verdict}}</li>
+  {{end}}</ul>
+  {{/* Post-review narrowing (REVIEW-SYNC-HONESTY, 2026-09-09). This
+       footnote used to end "Nothing this sheet counts is changed by this
+       line" — true of the BLOCK, false as a reader takes it, and sitting
+       right after the caution it then appeared to retract. The reviewer
+       built the fixture the builder's test lacked (peer-authored rows): 3
+       in at site-a, 2 dispatched to site-b, site-b's arrival authored on
+       its own stream, chip healthy throughout — on the road 2 → 0, road
+       vehicles 1 → 0, not tracked 0 → 1 the moment that one row is
+       delivered, on site 1 → 1. So the footnote now NAMES which numbers a
+       stale peer can move and which it cannot, and makes no blanket claim.
+       AWAY is this post's own records by design (domain.OutAtUncontrolled:
+       a sighting recorded only at the peer never clears it). */}}
+  <small class="note">Records made at another post reach this sheet only through sync; each line above is the last time
+  this post completed a sync with that peer, as at {{.RenderedAt}}. Which numbers a peer not reading <em>ok</em> can
+  move: <strong>ON SITE and AWAY are built from this post's own records</strong> (after a re-image, only once this
+  post's own history is recovered from a peer — the peer line above says so while it is not).
+  <strong>ON THE ROAD and NOT TRACKED depend on arrivals the peer records:</strong> until those reach this post, a
+  crew already arrived there stays listed on the road here and a rider the peer found not aboard is missing from
+  not tracked — so while a peer is not <em>ok</em>, on the road may be over-stated and not tracked under-stated.</small>
+  {{end}}
+</section>
+
+{{/* F1: the muster must say when it knows it is incomplete — a check-in
+     that authored its dispatch but crashed before its arrival (row 31,
+     checkin.go) leaves whoever was involved off the list below with no
+     other cue. Rendered on BOTH live and print (see the shared stylesheet's
+     print block: this box is excluded from the chrome-hiding rule), so a
+     physical sheet can never be silently short without saying so on the
+     paper itself. It comes FIRST because it qualifies the headcount. */}}
+{{if .Incomplete}}
+<section class="incomplete-warn" data-muster-section="incomplete">
+  <p class="cat-line"><span class="cat-tag cat-tag-warn">MAY BE INCOMPLETE</span></p>
+  <h2 class="cat-head">{{len .Incomplete}} check-in(s) in progress, not yet reflected on this sheet</h2>
+  <p>A check-in was logged at the gate but not finished (vehicle recorded, arrival not yet
+  recorded) — the people below may not include everyone actually on site. Resolve at
+  <a href="/gate#incomplete-checkins">the gate's incomplete check-ins (/gate)</a>.</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Muster table 1 (scrolls sideways)">
+  <table>
+    <thead><tr><th>Vehicle</th><th>Driver</th><th>Occupants</th></tr></thead>
+    <tbody>
+    {{range .Incomplete}}<tr><td><code>{{.Vehicle}}</code></td><td>{{.Driver}}</td><td>{{.Occupants}}</td></tr>{{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}
+
+{{/* THE HEADCOUNT. One block, one obvious answer to "who is on site right
+     now", and — in the same block, so nobody has to scroll to find out —
+     every category that is deliberately NOT in that number. The three
+     categories are distinguished by WORDS and by BOX FORM (solid / dashed /
+     plain), never by colour: this prints in one colour and colour-blindness
+     is not controlled for here. */}}
+{{/* James, 2026-10-01: print = roster only (no sync verdicts, no
+     counts/summary pages). The headcount block is SCREEN-ONLY now — the
+     print block hides .tally, overlap row included. */}}
+<section class="tally" data-muster-section="tally">
+  <div class="tally-primary">
+    <span class="tally-num" data-tally-count="on-site">{{.Board.Total}}</span>
+    <span class="tally-of">
+      <span class="tally-label">on site</span>
+      <span class="tally-note">Everyone listed under “On site” below, including the summary group.{{if .RestoredCount}} <strong data-tally-count="restored">{{.RestoredCount}} of them RESTORED</strong> from the other post’s copy, not signed in here by this post — see the note under “On site”.{{end}}</span>
+    </span>
+  </div>
+  <ul class="tally-rest">
+    {{/* D-6, 2026-08-21. FIRST of the exception rows, before away and
+         not-tracked, because it is the only one of the three that is
+         unambiguously THIS operation's responsibility: this post put these
+         people on the road. It is SEPARATE from the on-site number for the
+         plain reason that they are not on site — never added to it. */}}
+    <li class="tally-row" data-tally-row="in-transit">
+      <span class="tally-num-sm" data-tally-count="in-transit">{{.InTransitCount}}</span>
+      <span class="tally-of">
+        <span class="tally-label">on the road</span>
+        <span class="tally-note">This count is SEPARATE from the number above — it is not added to it.
+        Dispatched from this post to another post and not yet recorded as arrived. These people are
+        this operation’s responsibility and they are NAMED on this sheet, below.</span>
+      </span>
+    </li>
+    {{/* James, 2026-10-03: WORKING ON THE ROAD — the fifth population,
+         beside on-the-road because it is the same responsibility (this post
+         sent them out) and SEPARATE from it because nobody here is going
+         anywhere. Rendered only when non-empty, so every existing sheet is
+         byte-identical. */}}
+    {{if .RoadWork}}
+    <li class="tally-row" data-tally-row="road-work">
+      <span class="tally-num-sm" data-tally-count="road-work">{{.RoadWorkCount}}</span>
+      <span class="tally-of">
+        <span class="tally-label">working on the road</span>
+        <span class="tally-note">This count is SEPARATE from the number above — it is not added to it.
+        Equipment sent out from this post to work on the road itself, not yet checked back in. These people
+        are this operation’s responsibility and they are NAMED on this sheet, below.</span>
+      </span>
+    </li>
+    {{end}}
+    <li class="tally-row" data-tally-row="away">
+      <span class="tally-num-sm" data-tally-count="away">{{.AwayCount}}</span>
+      <span class="tally-of">
+        <span class="tally-label">away at an uncontrolled destination</span>
+        {{/* 2026-08-21: this note is the one line that appears on BOTH
+             surfaces and it must be true on both, so it no longer says
+             "account for them by radio" — on paper that would instruct the
+             sheet's reader to take on exactly the duty James's ruling
+             disclaims. The count itself prints; the names do not. */}}
+        <span class="tally-note">This count is SEPARATE from the number above — it is not added to it.
+        Recorded as gone out to a pad with no gate and no timer. During an evacuation they are the
+        destination operator’s responsibility, not this site’s — the printed sheet carries the roster, On the road and
+        Not tracked, but neither this count nor their names. Who and where is on this screen, below.{{/* James, 2026-10-04 (PRINT-COPY): was "the printed sheet carries this count" — false since the 2026-10-01 roster-only ruling. Fix round 3 (FINDINGS-R5 F13, L13-3d): ⟦was: "the printed sheet is the roster only: it carries neither …"⟧ — the print also carries On the road and Not tracked. */}}</span>
+      </span>
+    </li>
+    <li class="tally-row" data-tally-row="not-tracked">
+      <span class="tally-num-sm" data-tally-count="not-tracked">{{.NotTrackedCount}}</span>
+      <span class="tally-of">
+        <span class="tally-label">not tracked</span>
+        <span class="tally-note">This count is SEPARATE from the number above — it is not added to it.
+        Left on a vehicle and not aboard when it arrived, or taken off a run’s list by a trip correction — the
+        system cannot say where they are. Nothing is watching.{{/* Fix round 3 (FINDINGS-R5 F10): ⟦was: "Left on a vehicle and not aboard when it arrived — the system cannot say where they got off."⟧ — the D1 ruling's correction rows are listed here too. */}}</span>
+      </span>
+    </li>
+    {{if .Incomplete}}
+    <li class="tally-row" data-tally-row="incomplete">
+      <span class="tally-num-sm" data-tally-count="incomplete">{{len .Incomplete}}</span>
+      <span class="tally-of">
+        <span class="tally-label">check-in(s) unfinished</span>
+        <span class="tally-note">The on-site number above may be short by up to this many vehicles’ worth of
+        people — see the warning at the top of this sheet.</span>
+      </span>
+    </li>
+    {{end}}
+    {{/* M-16 (architecture M2). These three numbers used to be presented as
+         a partition — each exception row said "NOT on site and NOT in the
+         total" — and the domain deliberately refuses that. OutAtUncontrolled
+         documents the asymmetry in its own contract: "a person collected
+         from the pad who turns up at the peer unannounced stays on the pad
+         list — an extra name beside the peer's own on-site listing of them
+         (their local open visit), never an omission." NotTracked says the
+         same of its own scope. Both are reachable through the ordinary UI
+         with no raw POSTs.
+
+         So a reader could see one person counted on site AND named as away,
+         while the sheet told them that could not happen. The over-report is
+         the SAFE direction and must not be filtered out (arbiter ruling
+         M-16: wording only — suppressing the row would trade a confusing
+         sheet for a short one). What was wrong was the sheet claiming a
+         property it does not have, which teaches the reader that one of the
+         two lines in front of them must be a bug. */}}
+    <li class="tally-row tally-overlap" data-tally-row="overlap">
+      <span class="tally-of">
+        <span class="tally-label">these counts are derived separately, and may overlap</span>
+        <span class="tally-note">The number on site counts visits recorded at this gate. The counts
+        above are derived from trips, independently — so a name can appear in more than one of them. Somebody whose
+        return cannot be placed after the run they went out on stays named as away even while they are
+        also listed on site. That is deliberate: a name in two places costs search time, a name in no
+        place is what this sheet exists to prevent. If you see one, treat the person as present AND
+        account for the destination by radio.</span>
+      </span>
+    </li>
+  </ul>
+</section>
+
+{{/* ON SITE — the roster. The summary group (crews below the configured
+     minimum) lives INSIDE this section on purpose: those people are on site
+     and are already counted in the total above (domain/muster.go adds every
+     bucket to Board.Total before the fold decision). Rendering it after the
+     "NOT on site" sections, as this page used to, read as a fourth
+     exception category. */}}
+<section class="roster" data-muster-section="on-site">
+  <h2 class="section-head">On site <span class="count">({{.Board.Total}})</span></h2>
+  {{/* R-23 (James, 2026-09-13: "Restore them, but mark them as restored").
+       A post rebuilt mid-shift recovers its own earlier records from the
+       other post's copy (the only backup there is). Those people are on
+       the sheet and in the total, because the record says they are here
+       and recovery must restore a whole shift — but THIS post never saw
+       them walk in, so the sheet says so, per name and in a count. The
+       tag is a dashed box, not a colour: this prints in one colour. */}}
+  {{if .RestoredCount}}
+  <p class="restored-note" data-muster-section="restored" data-restored-count="{{.RestoredCount}}"><span class="restored-tag">RESTORED</span>
+    <strong>{{.RestoredCount}} of the names below carry this tag.</strong> They were not signed in at this gate by this post:
+    this post was rebuilt and recovered them from the other post’s copy of this site’s records. They are counted as on
+    site because that is what the record says — confirm each one by sight before relying on it.</p>
+  {{end}}
+  {{/* M-6 / T-L08-C (James, 2026-10-03, ruling): a person on this sheet who
+       is ALSO recorded on site at a peer post — an unsolicited arrival there
+       of somebody never checked out here, or the reverse (D-87: neither post
+       closes the other's record). Both records stay counted; what changed is
+       that the sheet now SAYS so, per name and in a count, at both posts.
+       The tag is a DOUBLE rule — two records — never a colour; RESTORED's
+       dashed box means something else and the two must not converge. */}}
+  {{if .ElsewhereCount}}
+  <p class="elsewhere-note" data-muster-section="elsewhere" data-elsewhere-count="{{.ElsewhereCount}}"><span class="elsewhere-tag">ALSO ON SITE AT …</span>
+    <strong>{{.ElsewhereCount}} of the names below carry this tag:</strong> the record also holds them on site at another post, with no departure recorded
+    at either. They are counted here because this gate recorded them in and nothing here recorded them out; the other post says the same of itself.
+    One person, two open records — confirm by sight or by radio which one is current. This sheet does not decide.</p>
+  {{end}}
+
+  {{range .Board.Companies}}
+  <div class="company" data-company-group="{{.CompanyName}}">
+    {{/* M-14 (accessibility A7). MEASURED: the printed sheet runs to three
+         pages and page 1 ends with the heading "On site (17)" alone at its
+         foot; page 2 opens directly with a company name and says nowhere on
+         it that these 17 names are the ON-SITE population rather than the
+         away list. A muster read aloud during an evacuation is a sheet that
+         gets SPLIT BETWEEN READERS, and the page-2 reader has names and no
+         category.
+
+         Why the obvious fixes do not work here, both measured:
+           - `break-after: avoid` on the heading — Firefox has never
+             implemented it (see the print block's own note);
+           - a repeating running header — a position:fixed masthead renders
+             INSIDE the page content box and lands on top of the first lines
+             of every page after the first, or is clipped away entirely.
+             Overlapping a name on a muster sheet is worse than the problem.
+
+         So the category is repeated as REAL CONTENT, once per block, and
+         hidden on screen where the section heading is already visible.
+         Firefox's default &T/&PT header-footer mitigates this too, but that
+         is a per-profile browser setting the operator can switch off, not a
+         property of this software. */}}
+    <p class="page-cat"><span class="page-cat-tag">ON SITE</span></p>
+    <h3 class="company-name">{{.CompanyName}} <span class="count">({{len .Trades}} trade{{if ne (len .Trades) 1}}s{{end}})</span></h3>
+    {{range .Trades}}
+    <div class="trade" data-trade-group="{{.TradeName}}">
+      <h4 class="trade-name">{{.TradeName}} <span class="count">({{len .Members}})</span></h4>
+      <ul class="names">{{range .Members}}<li>{{.PersonName}}{{if index $.RestoredVisits .VisitID}} <span class="restored-tag" data-restored-visit="{{.VisitID}}">RESTORED</span>{{end}}{{template "elsewhere_tags" (index $.Elsewhere .VisitID)}}</li>{{end}}</ul>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if .Board.Summary}}
+  <div class="summary" data-muster-section="folded">
+    <h3>Summary group <span class="count">({{len .Board.Summary}})</span></h3>
+    {{/* The lede and the note point at "the total above", which is not on
+         paper any more (James, 2026-10-01: print = roster only) — both are
+         screen-only; the names and their table print. */}}
+    <p class="summary-lede">Crews below the configured minimum size. <strong>These people are on site and
+    are counted in the total above</strong> — they are pooled here rather than each getting their own
+    two-line section.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Muster table 2 (scrolls sideways)">
+    <table>
+      {{/* M-46 (James, 2026-10-03). MEASURED on the pad (98-103 summary
+           rows, 7-8 printed pages): pages 4-6 of the summary table carried
+           no category label at all — the ON SITE .page-cat above is emitted
+           once per block, and a table that runs over several pages repeats
+           only its <thead>. So the category rides IN the thead: browsers
+           repeat a table header group at the top of every printed page the
+           table continues onto, which is exactly the reader who needs it.
+           Screen-hidden, paper-shown, like .page-cat (_styles.html). */}}
+      <thead><tr class="page-cat-row"><th colspan="3"><span class="page-cat-tag">ON SITE</span></th></tr><tr><th>Person</th><th>Company</th><th>Trade</th></tr></thead>
+      <tbody>
+      {{range .Board.Summary}}<tr><td>{{.PersonName}}{{if index $.RestoredVisits .VisitID}} <span class="restored-tag" data-restored-visit="{{.VisitID}}">RESTORED</span>{{end}}{{template "elsewhere_tags" (index $.Elsewhere .VisitID)}}</td><td>{{.CompanyName}}</td><td>{{.TradeName}}</td></tr>{{end}}
+      </tbody>
+    </table>
+    </div>
+    <small class="note muster-aside">Pooling is design §11. Folding compares crew size NUMERICALLY — the Access-era
+    "13" &lt; "2" text-comparison bug that misfiled a 13-person crew cannot recur here.</small>
+  </div>
+  {{end}}
+
+  {{/* The empty case asks BOTH buckets. Companies alone is not "nobody on
+       site": with a minimum crew size configured, every crew can fold into
+       Summary and leave Companies empty while people are still on site. */}}
+  {{if and (not .Board.Companies) (not .Board.Summary)}}
+  <p class="empty"><em>Nobody recorded on site{{if eq .Mode "reprint"}} in this sheet{{end}}.</em></p>
+  {{end}}
+
+  {{/* M-5 / M-19 (James, 2026-10-03, ruling: "never drop silently — print
+       'N on the original sheet have checked out since: <names, time>'").
+       REPRINT only: the frozen link's visits whose record has closed since
+       the sheet was minted. They are not in the roster above (it lists open
+       visits) and they used to vanish from the reprint without a word. Now
+       each is named, with how and when the record closed. PRINTS — it is
+       about whether the names on this paper are the names on the original —
+       and sits inside "On site" because that is the block it qualifies. A
+       reprint with nobody departed renders nothing here, so every existing
+       reprint is byte-identical. */}}
+  {{if and (eq .Mode "reprint") .CheckedOutCount}}
+  <div class="checked-out-since" data-muster-section="checked-out-since" data-checked-out-count="{{.CheckedOutCount}}">
+    <p class="page-cat"><span class="page-cat-tag">ON SITE — ORIGINAL SHEET</span></p>
+    <h3 class="checked-out-head">{{.CheckedOutCount}} on the original sheet {{if eq .CheckedOutCount 1}}has{{else}}have{{end}} checked out since</h3>
+    <p class="checked-out-lede">Named on the original sheet; this post’s record no longer holds them on site. Times are in this post’s zone.</p>
+    <ul class="names checked-out-names">{{range .CheckedOutSince}}<li data-checked-out-visit="{{.VisitID}}">{{.Name}} — {{.How}}</li>{{end}}</ul>
+  </div>
+  {{end}}
+</section>
+
+{{/* ON THE ROAD — the fourth population, added 2026-08-21 under D-6
+     (100% accountability: an OSHA rule applied on the Slope, enforced for
+     insurance reasons, with no regulation number).
+
+     WHAT WAS WRONG. This sheet had three populations and printed two. A
+     crew that left this post twenty minutes ago and has not reached the
+     peer was on NEITHER post's muster — not on the origin's, because the
+     dispatch fold closed their visits here; not on the destination's,
+     because no arrival has been recorded there. Measured on a live
+     two-site instance before this section existed: six people checked in
+     at site-a, three dispatched to site-b, and site-a's sheet read 3 on
+     site / 0 away / 0 not tracked while site-b's read 0 / 0 / 0. Three
+     people, on no sheet at either post, while the system held their
+     vehicle, driver, manifest, destination and a running deadline. The
+     people this software tracks most actively were absent from the
+     document that proves accountability.
+
+     WHY IT SITS HERE, between ON SITE and NOT ON SITE. The order encodes
+     responsibility, which is what the sheet is scoped by. On site: ours,
+     here. On the road: ours, moving — this post put them there. Not on
+     site: somebody else's (away) or nobody's (not tracked). Making this a
+     fourth box inside "Not on site" would file our own crew alongside
+     Conoco's, which is the exact distinction James's away ruling drew.
+
+     WHY IT PRINTS, names and all. Apply the away ruling's own test —
+     "we are not responsible for them, they are Conoco's problem" — and it
+     answers in the opposite direction here: this post authorised the
+     departure, holds the manifest and is where the search starts. So the
+     names go on the paper. It is NOT `.incomplete-warn` and must never
+     read like it: that box is a WARNING that the sheet may be short people
+     it does not know about. This one is a STATEMENT of something the sheet
+     knows exactly. These people are fine; they are on the road. Solid box,
+     neutral category tag, no warning word anywhere in it.
+
+     WHAT IT CANNOT SAY, stated on the sheet rather than hidden. The
+     arrival clock for a run does NOT live at the post that dispatched it:
+     deadline_capture rows are written only where destination_site is this
+     site (deadline/deadline.go, OnApplied), and the replication envelope
+     carries no wall-clock by design (§9.3). So this post can print the
+     ALLOWANCE the officer promised — authored data, true everywhere — and
+     cannot print a time due or an overdue verdict without inventing a time
+     basis it does not have. Inventing one is precisely what §9.3 refuses
+     (an unanchored deadline is overdue-unresolved, never a countdown), so
+     the section says where the clock actually is instead of faking it. */}}
+{{if .InTransit}}
+<section class="on-road" data-muster-section="in-transit">
+  <p class="cat-line"><span class="cat-tag">ON THE ROAD — DISPATCHED FROM HERE, NOT YET ARRIVED</span></p>
+  {{/* ⟦W7-34(b)/(e)⟧ THE NUMBER AND THE GRAMMAR ARE BOTH DRIVEN BY DISTINCT
+       RESOLVED VEHICLE IDENTITIES, and they must move TOGETHER. This used to
+       read `{{"{{len .InTransit}}"}} vehicle{{"{{if ne (len .InTransit) 1}}"}}s`, which counts
+       ROWS and calls them vehicles: one truck with two open runs was reported
+       as two trucks on the ice. Re-pointing the NUMBER and leaving the
+       PLURALISATION on the row count prints "1 vehicles" on an evacuation
+       sheet, so both read InTransitVehicleCount. */}}
+  <h2 class="section-head">On the road <span class="count">({{.InTransitCount}} on {{.InTransitVehicleCount}} vehicle{{if ne .InTransitVehicleCount 1}}s{{end}})<span class="muster-aside"> — counted separately from the total above</span></span></h2>
+  {{/* .road-lede and the closing .muster-aside note are screen-only
+       (James, 2026-10-01: print = roster only): on paper the category tag,
+       each vehicle's heading, driver and allowance, and the names are the
+       section. */}}
+  <p class="road-lede">These people left this post on the vehicles below and no arrival has been recorded
+  for them yet. <strong>They are not on site and are not in the on-site total</strong> — they are also
+  not missing, not late by any measure this sheet can take, and nothing here is a warning. This post is
+  responsible for them, which is why they are named.</p>
+
+  {{range .InTransit}}
+  {{/* M-14: the category a split sheet must not lose. Unlike the away
+       list's copy of this label, this one is NOT inert — this section
+       prints, so a reader holding page 2 really can see it. */}}
+  {{/* ⟦W7-34(a)⟧ The hook carries the RESOLVED IDENTITY, not the display
+       string: two records an officer has joined are ONE truck however
+       differently their numbers read. The block COUNT is unchanged — W7 must
+       not merge two in-transit blocks into one without a further ruling. */}}
+  <div class="road-trip" data-in-transit-vehicle="{{.VehicleIdentity}}">
+    <p class="page-cat"><span class="page-cat-tag">ON THE ROAD — NOT ON SITE</span></p>
+    <h3 class="road-head"><code>{{.Vehicle}}</code> &#8594; {{.Destination}} <span class="count">({{len .Persons}})</span></h3>
+    <p class="road-meta">Driver: <strong>{{.Driver}}</strong>. {{with .Allowance}}Journey allowance
+    recorded at dispatch: <strong>{{.}}</strong>.{{else}}No journey allowance was
+    recorded for this run.{{end}}</p>
+    <ul class="names">{{range .Persons}}<li>{{.Name}}</li>{{end}}</ul>
+  </div>
+  {{end}}
+
+  <small class="note muster-aside">Recorded as having left this post for another post, with no arrival recorded here
+  yet. <strong>This sheet shows the journey allowance that was promised at dispatch and cannot say whether a run is late.</strong>
+  {{/* James, 2026-10-04 (ROAD-NOTE): was "the arrival clock is kept at the destination post, not at this one" — contradicted the origin OUTBOUND alert (feda689): this post also watches its own runs. */}}
+  A run that is overdue raises an OUTBOUND alert on this post's own banner, counted from the time it was dispatched
+  here, and the destination keeps its own clock for the arrival; the alert banner and the trips board hold
+  the answer. Ask the destination by radio if it matters right now. A run leaves this list when its arrival is recorded and that record reaches this post, so
+  for as long as the link is down a crew already safely at the far end stays named here. That is
+  deliberate: an extra name costs search time, a missing name is what this sheet exists to prevent.</small>
+</section>
+{{end}}
+
+{{/* WORKING ON THE ROAD — the fifth population (James, 2026-10-03: "another
+     category for equipment working on the ice road so that they are not
+     listed as overdue when they will spend up to 12 hours on the road
+     working"). Same ownership and the same reasons as ON THE ROAD above —
+     this post sent them out, its own stream holds the dispatch, the dispatch
+     fold closed their visits here in the same transaction — and the same
+     render posture: live on both routes, never frozen into a reprint, NOT in
+     the on-site total, PRINTED with names. Its own section because these
+     people are not travelling to anyone: a reader scanning ON THE ROAD for
+     who is expected at the peer must not count them. The clock for a
+     road-work run DOES live at this post (deadline/scan.go — the origin owns
+     it), so unlike the section above this one can honestly say the board
+     and the banner here hold the overdue answer. Rendered only when
+     non-empty, so every sheet without road work is byte-identical. */}}
+{{if .RoadWork}}
+<section class="on-road road-work" data-muster-section="road-work">
+  <p class="cat-line"><span class="cat-tag">{{.RoadWorkLabel}} — SENT OUT FROM HERE, NOT YET BACK</span></p>
+  <h2 class="section-head">{{.RoadWorkLabel}} <span class="count">({{.RoadWorkCount}} on {{.RoadWorkVehicleCount}} vehicle{{if ne .RoadWorkVehicleCount 1}}s{{end}})<span class="muster-aside"> — counted separately from the total above</span></span></h2>
+  <p class="road-lede">These people left this post on the equipment below to work on the road itself and have not
+  checked back in. <strong>They are not on site and are not in the on-site total</strong>; a run is working
+  until it has been out longer than this post&rsquo;s configured limit, and OVERDUE after — that verdict is on
+  this post&rsquo;s own board and banner. This post is responsible for them, which is why they are named.</p>
+  {{range .RoadWork}}
+  <div class="road-trip" data-road-work-vehicle="{{.VehicleIdentity}}">
+    <p class="page-cat"><span class="page-cat-tag">WORKING ON THE ROAD — NOT ON SITE</span></p>
+    <h3 class="road-head"><code>{{.Vehicle}}</code> — working on the road <span class="count">({{len .Persons}})</span></h3>
+    <p class="road-meta">Driver: <strong>{{.Driver}}</strong>. {{with .Allowance}}Working limit
+    recorded at dispatch: <strong>{{.}}</strong>.{{else}}No working limit was recorded for this run.{{end}}</p>
+    <ul class="names">{{range .Persons}}<li>{{.Name}}{{template "elsewhere_tags" (index $.RoadWorkElsewhere .PersonID)}}</li>{{end}}</ul>
+  </div>
+  {{end}}
+  {{/* D27 (James, 2026-10-04): the closing sentence names the door that
+       actually closes a run. ⟦was: "or when another post records its
+       arrival there" — an unsolicited arrival elsewhere never binds a
+       road-work run, so that promise was false (L08 RW-1)⟧ */}}
+  <small class="note muster-aside">Recorded as having left this post to work on the road, with no check-in recorded
+  since. A run leaves this list when it checks back in here, or when another post records it with &ldquo;Arrived here
+  instead&rdquo; and that record reaches this post.{{if .RoadWorkElsewhere}} A name marked ALSO ON SITE AT was entered at
+  that post without closing this run: both records stay listed &mdash; confirm by radio.{{end}}</small>
+</section>
+{{end}}
+
+{{/* NOT ON SITE — the other half of the evacuation question, and two
+     genuinely different answers to it. They are SIBLINGS here. "Not tracked"
+     used to render inside the away box, under a heading that said "Away at
+     uncontrolled destinations", which blurred a knowledge gap into a
+     recorded status.
+
+     Both are live at render time on BOTH routes and are NOT frozen into a
+     reprint's visit set (see musterData's field comments: an away person has
+     no visit row — that is what away MEANS).
+
+     THEY PRINT DIFFERENTLY, and the difference is the whole point of the
+     2026-08-21 change. Ruling from James, who works this site and owns the
+     liability question: "we should not be printing the away at an
+     uncontrolled pad persons when a muster happens. as we are keeping track
+     of them sure but we are not responsible for them — they are Conoco's
+     problem." So:
+
+       away         SCREEN ONLY. The post still knows who went where and the
+                    names are right here on the display. The printed
+                    evacuation sheet is scoped to the people this operation
+                    is RESPONSIBLE for, and these people were handed off to
+                    an operator who is not us. `.away` is hidden by
+                    @media print and `.away-scope` below prints in its place:
+                    a bare count plus a line saying whose they are, so the
+                    sheet still records that they exist and left, without
+                    claiming a duty of care over them.
+
+                    AND SCOPED TO THIS POST (2026-08-21, second ruling):
+                    "on the pad muster roster it should not display the
+                    persons going to the other site — the only one that
+                    would have any concern about them is the ice road site
+                    control." Trips replicate, so this section used to name
+                    the PEER's pad crew as well — people who never came here
+                    and never will on that run. Both this section and the
+                    print scope line below now render
+                    domain.OutAtUncontrolledFrom(store, THIS site), the same
+                    origin filter domain.IncompleteCheckIns has always
+                    applied to the F1 warning above. The reasoning, and why
+                    /trips and the picker were deliberately NOT narrowed
+                    with it, is on OutAtUncontrolledFrom itself.
+
+       not tracked  STILL PRINTS, names and all. This is deliberately NOT
+                    covered by the ruling above and must not be folded into
+                    it: "away" is a HANDOFF to a known operator at a known
+                    place, "not tracked" is an UNKNOWN about somebody who
+                    left on OUR vehicle from OUR site and cannot be placed
+                    at any destination at all. There is nobody to have
+                    handed them off to. Until James rules otherwise this
+                    prints exactly as it did before.
+
+                    "Not tracked" is also NOT origin-scoped, for a reason
+                    that is visible in the record rather than assumed: a
+                    NotTracked row names a trip with a real DESTINATION
+                    POST, and it is that post which authored the "not
+                    aboard at arrival" observation (its own expected-arrival
+                    manifest). Both ends have a genuine relationship to it,
+                    unlike a pad run, whose far end is a config id and not a
+                    post at all. Flagged for a ruling, not decided here. */}}
+{{if or .Away .NotTracked}}
+{{/* James, 2026-10-01: print = roster only. The away list never printed
+     (2026-08-21) and its count-only stand-in, .away-scope, is now off paper
+     too — it is a count, and the ruling removed the counts. So when nobody
+     is NOT TRACKED this section has nothing left to print, and
+     .offsite-unprinted takes its heading off the paper with it rather than
+     leaving "Not on site" over an empty space. */}}
+<section class="offsite{{if not .NotTracked}} offsite-unprinted{{end}}" data-muster-section="off-site">
+  <h2 class="section-head">Not on site <span class="count muster-aside">— counted separately from the total above</span></h2>
+
+  {{if .Away}}
+  {{/* PRINT-ONLY, and the exact inverse of the `.away` section below: this
+       is what the paper gets where the names are not allowed to go.
+
+       The design question it answers: if the away people vanish from the
+       sheet entirely, a reader has no way to know that six people left for
+       a pad, and someone will eventually "correct" the sheet by adding
+       them back — or read the absence as the system having lost them.
+       Printing the COUNT and the responsibility line preserves the fact
+       while disclaiming the duty, which is precisely what James ruled.
+       No names, no pads, no vehicles: the count is a fact about this
+       operation ("this many of the people who came through this gate are
+       currently elsewhere"), the names are the other operator's roster. */}}
+  {{/* James, 2026-10-01: print = roster only (no sync verdicts, no
+       counts/summary pages). This was the paper's count-only stand-in for
+       the away names; it is a count, so the print block now hides it and
+       it renders NOWHERE (it was always screen-hidden). Kept knowingly, as
+       the inert .page-cat label below is kept: it is correct the moment a
+       ruling puts the away boundary back on paper. */}}
+  <section class="away-scope" data-muster-section="away-scope">
+    <p class="cat-line"><span class="cat-tag">AWAY — NOT THIS OPERATION’S RESPONSIBILITY</span></p>
+    <h3 class="cat-head">{{.AwayCount}} departed to an uncontrolled destination — not this operation’s responsibility, not named on this sheet</h3>
+    {{if .AwayCount}}
+    <p>{{.AwayCount}} person(s) recorded as having left this site for a destination this operation does
+    not control, with no recorded return. <strong>During an evacuation they are the destination
+    operator’s responsibility, not this site’s</strong>, so this sheet states how many there are and
+    does not name them. This count is SEPARATE from the on-site total above and is not added to it.</p>
+    <p>The departure is recorded, not omitted: this line is here so the sheet states its own boundary
+    rather than being silently short. Who they are, where they went and what they went out on is on the
+    live muster board at <code>/muster</code>, which this post keeps and can read out on request.</p>
+    {{else}}
+    <p>Nobody is currently recorded as away at an uncontrolled destination. This line prints even at
+    zero so the sheet states its boundary explicitly rather than leaving a reader to guess whether the
+    category was checked.</p>
+    {{end}}
+  </section>
+  {{end}}
+
+  {{if .Away}}
+  {{/* SCREEN ONLY from 2026-08-21 — hidden by @media print (see the section
+       comment above and the print block in _styles.html). Everything in
+       here is still rendered into the HTML and still read by the post; it
+       is the PAPER that is scoped by responsibility, not the record. */}}
+  <section class="away" data-muster-section="away">
+    <p class="cat-line"><span class="cat-tag">AWAY — out at a pad, counted separately from the total above</span></p>
+    <h3 class="cat-head">Away at uncontrolled destinations <span class="count">({{.AwayCount}})</span></h3>
+    {{range .Away}}
+    <div class="pad" data-away-pad="{{.Pad}}">
+      {{/* M-14, the same mechanism on the away list — the category a split
+           sheet must not lose.
+
+           2026-08-21: this label is CURRENTLY INERT and is kept knowingly.
+           `.page-cat` is screen-hidden and paper-shown, and this whole
+           section is now paper-hidden, so it renders nowhere today. It is
+           left in place because it is correct-by-construction the moment
+           the away list ever prints again (a reversal of James's ruling, or
+           a second sheet scoped differently), and because deleting it would
+           quietly remove a page-break safeguard that a future reader would
+           have to rediscover. It is not evidence that this list prints. */}}
+      <p class="page-cat"><span class="page-cat-tag">AWAY — NOT ON SITE</span></p>
+      <h4>{{.Pad}} <span class="count">({{len .Persons}})</span></h4>
+      {{if .Persons}}
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Muster table 3 (scrolls sideways)">
+      <table>
+        <thead><tr><th>Person</th><th>Went out on</th></tr></thead>
+        <tbody>
+        {{range .Persons}}<tr><td>{{.Name}}</td><td><code>{{.Vehicle}}</code></td></tr>{{end}}
+        </tbody>
+      </table>
+      </div>
+      {{else}}<p class="empty"><em>Nobody recorded away at this destination.</em></p>{{end}}
+    </div>
+    {{end}}
+    <small class="note">Recorded as having gone out and with no recorded return. No gate and no
+    timer at these destinations. They are off this site's muster while away and check in normally on
+    return, on any vehicle. Every configured uncontrolled destination is listed here even when it
+    holds nobody: this board says what it knows, including that it knows of nobody.
+    <strong>This list is on screen only.</strong> It is not on the printed muster and must not be
+    read out as part of one: during an evacuation these people are the destination operator's
+    responsibility, not this site's (ruling 2026-08-21). The printed sheet carries the roster, On the road and
+    Not tracked, but not this list and not their number either.{{/* Fix round 3 (F13): ⟦was: "The printed sheet is the roster only: it does not carry their number either."⟧ */}} If you need to pass the names to whoever is asking, they are here.</small>
+  </section>
+  {{end}}
+
+  {{/* 2026-08-20 (operator ruling): the third category — left on a vehicle,
+       not aboard when it arrived, and the record cannot say where they got
+       off. The arrival site did not see the drop-off, so the system states
+       the uncertainty instead of letting anyone type a location it has no
+       basis for. Routine, not a defect — but nobody is watching. The DASHED
+       box is the form encoding for exactly that: it is not one more solid
+       "we know where they are" panel. */}}
+  {{if .NotTracked}}
+  <section class="not-tracked" data-muster-section="not-tracked">
+    <p class="cat-line"><span class="cat-tag cat-tag-unwatched">NOT TRACKED — whereabouts not recorded, nothing is watching</span></p>
+    <h3 class="cat-head">Not tracked <span class="count">({{.NotTrackedCount}} on {{.NotTrackedTripCount}} trip{{if ne .NotTrackedTripCount 1}}s{{end}})</span></h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Muster table 4 (scrolls sideways)">
+    <table>
+      {{/* M-46: the category rides in the thead so every printed page the
+           table continues onto says what these names are (see the summary
+           table above for the measurement). */}}
+      <thead><tr class="page-cat-row"><th colspan="2"><span class="page-cat-tag">NOT TRACKED — NOT ON SITE</span></th></tr><tr><th>Person</th><th>Last recorded</th><th class="last-seen-cell"><span class="sr-only">Last seen</span></th></tr></thead>
+      <tbody>
+      {{range .NotTracked}}{{$row := .}}{{range .Persons}}
+      {{/* Fix round 3 (FINDINGS-R5 F3a, F10): the destination by display name, the LIVE vehicle with the
+           as-dispatched number beside it when they differ, and the time they became not tracked.
+           ⟦was: "on <code>$row.Vehicle</code> to $row.Destination, …" — raw site id, as-dispatched truck, no time⟧ */}}
+      <tr><td>{{.Name}}</td><td>on <code>{{$row.Vehicle}}</code>{{with $row.DispatchedAs}} (dispatched as <code>{{.}}</code>){{end}} to {{$row.Destination}}, {{if $row.TakenOffByCorrection}}taken off this run by a trip correction{{else}}not aboard at arrival{{end}}{{with $row.Since}} at {{.}}{{end}} — whereabouts not recorded</td><td class="last-seen-cell">{{/* FIX16a */}}<a href="/last-seen?person={{.PersonID}}">last seen</a></td></tr>
+      {{end}}{{end}}
+      </tbody>
+    </table>
+    </div>
+    <small class="note muster-aside">Left on a vehicle and did not arrive with it, or
+    taken off a run’s list by a trip correction — routine for a drop-off en route, and not an error.{{/* Fix round 3 (F10): ⟦was: "Left on a vehicle and did not arrive with it — routine …"⟧ */}} But this is a gap in knowledge, not a status: nothing is watching for
+    these people and no timer will fire. Account for them by radio if it matters right now. They
+    check in normally whenever they next reach a gate.</small>
+  </section>
+  {{end}}
+</section>
+{{end}}
+
+<nav class="screen-only pagenav">
+{{if eq .Mode "live"}}
+<a href="/trips">trips</a> · <a href="/search">search</a> · <a href="/status">status page</a>
+{{else}}
+<a href="/muster">live muster board</a> · <a href="/trips">trips</a> · <a href="/search">search</a> · <a href="/status">status page</a>
+{{end}}
+</nav>
+{{template "page_close" .}}
+
+{{/* elsewhere_tags — M-6 / T-L08-C (James, 2026-10-03): one tag per OTHER
+     post holding an open visit for this name. Called with the member's
+     []elsewhereTag (nil for most names: renders nothing). Shared by the
+     grouped roster and the summary table here, and by the analytics site
+     page (analytics_site.html), so the same fact reads the same words
+     everywhere. data-also-on-site-at is the test hook (F19). */}}
+{{define "elsewhere_tags"}}{{range .}} <span class="elsewhere-tag" data-also-on-site-at="{{.SiteID}}">ALSO ON SITE AT {{.Site}}{{if .Since}} since {{.Since}}{{else}} (sign-in time not on record here){{end}}</span>{{end}}{{end}}

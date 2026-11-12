@@ -1,0 +1,138 @@
+{{/* _layout — the shared document shell. No page hand-rolls <!doctype>, a
+     <head>, or a <style> block of its own any more: they open with
+     "page_open" and close with "page_close", and the single inlined
+     stylesheet ("styles") plus the persistent "topbar" arrive with the
+     shell.
+
+     Argument shape (built with the `dict` func, see templatefuncs.go):
+       Title — the full <title> string for this page
+       Main  — extra class(es) for the content column ("" or "narrow")
+       Data  — the handler's own page data, passed through untouched to the
+               top bar and used by the page body itself
+       Refresh — OPTIONAL seconds for a <meta http-equiv="refresh">: a
+               read-only LIVE view (analytics_site.html, James 2026-10-03)
+               updates itself with scripting off. Absent = no refresh; a
+               page with a TYPED form must never pass it. James,
+               2026-10-03: ONLY /analytics and /analytics/site/{site} pass
+               it, both 60 s, each with a visible "Pause live updates"
+               link (?live=0 renders without this meta tag — _live.html).
+               Neither page has any form (FIX7: the alert strip renders
+               read-only there), so a refresh loses nothing typed.
+               ⟦was: "/analytics' only form is the alert strip's
+               single-click Acknowledge POST"⟧ No other page refreshes. ⟦was: /analytics 30 s,
+               the site page 15 s⟧
+
+     The top bar renders only the fields a given page's handler actually
+     populates (see _topbar.html); nothing here invents data. */}}
+{{define "page_open"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{{with .Refresh}}<meta http-equiv="refresh" content="{{.}}">
+{{end}}<title>{{.Title}}</title>
+{{template "styles" .}}
+</head>
+<body>
+{{template "topbar" .Data}}
+<main class="page {{.Main}}">
+{{end}}
+
+{{define "page_close"}}</main>
+{{/* The theme switch's progressive enhancement (theme.go explains the
+     whole design). With scripting OFF the top bar's links are ordinary
+     GETs that set the cookie and redirect back here. With it ON this asks
+     for the same thing with js=1 (a 204, no redirect) and flips data-theme
+     on <html> in place, so switching never throws away a half-typed form.
+     Any failure just follows the link. It reads and writes no storage and
+     no cookie — the cookie is only ever set by the server's response.
+     At the END of the body, never in the top bar: several tests locate a
+     page's own first <script>. */}}
+<script id="theme-script">
+(function () {
+  if (!window.fetch || !document.querySelectorAll) return;
+  var links = document.querySelectorAll("a[data-theme-set]");
+  for (var i = 0; i < links.length; i++) {
+    links[i].addEventListener("click", function (ev) {
+      var a = this, mode = a.getAttribute("data-theme-set");
+      ev.preventDefault();
+      fetch(a.href + "&js=1", { credentials: "same-origin" }).then(function (r) {
+        if (r.status !== 204) { window.location.href = a.href; return; }
+        document.documentElement.setAttribute("data-theme", mode);
+        var other = document.querySelector("a[data-theme-set]:not([data-theme-set='" + mode + "'])");
+        if (other) other.focus();
+      }, function () { window.location.href = a.href; });
+    });
+  }
+})();
+</script>
+{{/* F14: keep --topbar-h equal to the sticky top bar's height so
+     scroll-padding-top (_styles.html) tracks it at every width. Progressive:
+     with scripting off the stylesheet's static fallback applies. On a phone
+     .topbar is display:contents and only .topbar-alerts is stuck (or, on a
+     page with no alert strip, FIX15's .topbar-signal box). */}}
+<script id="topbar-offset-script">
+(function () {
+  var bar = document.querySelector("header.topbar");
+  if (!bar || !window.getComputedStyle) return;
+  var root = document.documentElement;
+  function sticky() {
+    if (window.getComputedStyle(bar).display === "contents") return bar.querySelector(".topbar-alerts, .topbar-signal");
+    return bar;
+  }
+  function measure() {
+    var el = sticky(), h = 0;
+    if (el && window.getComputedStyle(el).position === "sticky") h = Math.ceil(el.getBoundingClientRect().height);
+    root.style.setProperty("--topbar-h", h ? (h + 8) + "px" : "0px");
+  }
+  measure();
+  window.addEventListener("resize", measure);
+  // FIX5 (R7 L05 residue A): scroll-padding cannot see a control whose
+  // FOCUSED part is an inner field — a datetime-local focuses its month/
+  // hour field ~12 px inside its border, so with that field already clear
+  // of the bar the browser does not scroll and the input's top edge stayed
+  // 2-4 px under the bar (/trips occurred_at). Settle any focused control
+  // whose box starts under the bar to just below it.
+  document.addEventListener("focusin", function (e) {
+    var el = sticky(), t = e.target;
+    if (!el || !t || !t.getBoundingClientRect || window.getComputedStyle(el).position !== "sticky" || el.contains(t)) return;
+    var under = el.getBoundingClientRect().bottom - t.getBoundingClientRect().top;
+    if (under > 0) window.scrollBy(0, -(under + 8));
+  });
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(measure);
+    ro.observe(bar);
+    var al = bar.querySelector(".topbar-alerts, .topbar-signal");
+    if (al) ro.observe(al);
+  }
+})();
+</script>
+{{/* FIX7: the analytics live line's countdown (_live.html). Display only —
+     the page's <meta http-equiv="refresh"> does the reload, with or without
+     this. Browsers start that timer when the document finishes loading, so
+     the deadline is taken at the load event. Reads and writes no storage;
+     does nothing on a page without [data-an-countdown] (paused, or any
+     other page). */}}
+<script id="an-countdown-script">
+(function () {
+  var box = document.querySelector("[data-an-countdown]");
+  if (!box || !document.querySelector("meta[http-equiv=refresh]")) return;
+  var secs = parseInt(box.getAttribute("data-an-countdown"), 10);
+  var n = box.querySelector(".an-countdown-n");
+  var every = box.parentNode.querySelector("[data-an-every]");
+  if (!(secs > 0) || !n) return;
+  if (every) every.className = "sr-only";
+  box.hidden = false;
+  var deadline = Date.now() + secs * 1000;
+  function tick() {
+    var left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    if (n.textContent !== String(left)) n.textContent = String(left);
+    if (left > 0) setTimeout(tick, 250);
+  }
+  function start() { deadline = Date.now() + secs * 1000; tick(); }
+  if (document.readyState === "complete") start(); else window.addEventListener("load", start);
+})();
+</script>
+</body>
+</html>
+{{end}}

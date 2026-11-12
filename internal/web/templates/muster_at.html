@@ -1,0 +1,137 @@
+{{template "page_open" (dict
+  "Title" (printf "Muster at a time — %s — Site Control" (sitelabel .SiteID))
+  "Main" "muster-at"
+  "Data" .)}}
+{{/* muster_at.html — GET /muster/at (muster_at.go, FIX16a). The muster for
+     any moment: a plain GET form (works with scripting off), then one sheet
+     per post asked for — on site grouped company → trade like the live
+     board, on the road by vehicle, not tracked, and the records that could
+     not be placed. Login-only on every host. On the dispatch host
+     (.Dispatch) nothing links into the operator console: names link to
+     /last-seen, posts to /analytics/site/{id}. data-* hooks are for tests. */}}
+<style>
+.muster-at-form .search-grid { max-width: 48rem; }
+.muster-at-sheet { margin-block: var(--sp-5, 1.5rem); }
+.muster-at-asof { font-weight: 650; }
+.muster-at-mark { display: inline-block; font-size: var(--fs-xs, .8rem); font-weight: 650; border: 1px dashed currentColor; border-radius: 3px; padding: 0 .3em; margin-left: .3em; }
+.muster-at-person { overflow-wrap: anywhere; }
+.muster-at-seen { font-size: var(--fs-xs, .8rem); margin-left: .4em; white-space: nowrap; }
+.muster-at .names li { min-height: 1.75rem; }
+.muster-at-road { margin-block: var(--sp-3, .75rem); }
+.muster-at-road h4 { margin-bottom: .2rem; overflow-wrap: anywhere; }
+.muster-at-road .note { margin-top: 0; }
+.muster-at table { min-width: 0; }
+.muster-at td { overflow-wrap: break-word; min-width: 7rem; vertical-align: top; }
+.muster-at td:first-child { min-width: 6rem; }
+@media print { .muster-at-seen, .muster-at-form, .pagenav { display: none; } }
+</style>
+<h1>Muster at a time</h1>
+<p class="note">Who the record places on site and on the road at a moment you choose — every post's records that have
+reached {{.Cfg.PostName}}, with time corrections, hand-entered times and turn-backs applied. This is the record as it
+stands now: a correction made later counts.</p>
+
+<form class="search-form muster-at-form" method="get" action="/muster/at" aria-label="Muster at a time">
+  <div class="search-grid">
+    <p class="field"><label class="field-label" for="muster-at-site">Site</label>
+      <select id="muster-at-site" name="site">
+        {{if .AllowAll}}<option value="all"{{if eq .Form.Site "all"}} selected{{end}}>All sites</option>{{end}}
+        {{range .Sites}}<option value="{{.Value}}"{{if .Checked}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select></p>
+    <p class="field"><label class="field-label" for="muster-at-date">Date</label>
+      <input type="date" id="muster-at-date" name="date" value="{{.Form.Date}}" placeholder="2026-10-05" required></p>
+    <p class="field"><label class="field-label" for="muster-at-time">Time</label>
+      <input type="time" id="muster-at-time" name="time" value="{{.Form.Time}}" placeholder="07:30" required
+             aria-describedby="muster-at-time-help"></p>
+  </div>
+  <small class="note" id="muster-at-time-help">24-hour time, by that post's own clock. The whole minute counts.</small>
+  <p class="actions"><button type="submit" class="button-primary">Show the muster</button>
+    {{if .Asked}}<a class="button" href="/muster/at">Clear</a>{{end}}</p>
+</form>
+
+{{if .Asked}}
+{{if .Problems}}
+<div class="notice notice-warn" id="muster-at-problems"><strong>NOT SHOWN</strong> — fix this and try again:
+  <ul>{{range .Problems}}<li>{{.}}</li>{{end}}</ul></div>
+{{else if .Err}}
+<div class="notice notice-critical"><strong>COULD NOT BUILD THE MUSTER</strong> — {{.Err}}. Nothing is listed, so
+nothing can be mistaken for a complete answer.</div>
+{{else}}
+{{range .Sheets}}{{$sh := .}}
+<section class="muster-at-sheet" data-muster-at-site="{{.SiteID}}" aria-labelledby="muster-at-h-{{.SiteID}}">
+  <h2 id="muster-at-h-{{.SiteID}}">{{sitelabel .SiteID}} <span class="muster-at-asof" data-muster-at-asof>— {{.AsOf}}</span></h2>
+  {{with .Coverage}}<div class="notice notice-warn" data-muster-at-coverage><strong>MAY BE INCOMPLETE</strong> — {{.}}</div>{{end}}
+
+  <section class="roster" data-muster-at-section="on-site">
+    <h3 class="section-head">On site <span class="count">({{.Board.Total}})</span></h3>
+    {{if not .Board.Total}}<p class="note">Nobody is recorded on site at {{sitelabel .SiteID}} at this time.</p>{{end}}
+    {{range .Board.Companies}}
+    <div class="company" data-company-group="{{.CompanyName}}">
+      <h4 class="company-name">{{.CompanyName}} <span class="count">({{len .Trades}} trade{{if ne (len .Trades) 1}}s{{end}})</span></h4>
+      {{range .Trades}}
+      <div class="trade" data-trade-group="{{.TradeName}}">
+        <h5 class="trade-name">{{.TradeName}} <span class="count">({{len .Members}})</span></h5>
+        <ul class="names">{{range .Members}}{{template "muster_at_member" (dict "M" . "Sh" $sh)}}{{end}}</ul>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+    {{if .Board.Summary}}
+    <h4>Summary group <span class="count">({{len .Board.Summary}})</span></h4>
+    <ul class="names">{{range .Board.Summary}}{{template "muster_at_member" (dict "M" . "Sh" $sh)}}{{end}}</ul>
+    {{end}}
+  </section>
+
+  <section data-muster-at-section="on-the-road">
+    <h3 class="section-head">On the road <span class="count">({{.RoadN}} on {{len .Road}} vehicle{{if ne (len .Road) 1}}s{{end}})<span class="muster-aside"> — counted separately from the total above</span></span></h3>
+    {{range .Road}}
+    <div class="muster-at-road" data-muster-at-trip="{{.TripID}}">
+      <h4><code>{{.Vehicle}}</code> — {{.Where}} <span class="count">({{len .Persons}})</span></h4>
+      <p class="note">Left {{.Left}}{{with .LeftHand}} <strong class="search-hand">{{.}}</strong>{{end}}; {{.Later}}.</p>
+      <ul class="names">{{range .Persons}}<li class="muster-at-person" data-person-id="{{.PersonID}}">{{.Name}}{{range .Marks}} <span class="muster-at-mark">{{.}}</span>{{end}} <a class="muster-at-seen" href="/last-seen?person={{.PersonID}}">last seen<span class="sr-only"> — {{.Name}}</span></a></li>{{end}}</ul>
+    </div>
+    {{else}}<p class="note">No vehicle from {{sitelabel .SiteID}} was on the road with anyone aboard at this time.</p>{{end}}
+  </section>
+
+  {{if .Gaps}}
+  <section class="not-tracked" data-muster-at-section="not-tracked">
+    <h3 class="cat-head">Not tracked <span class="count">({{len .Gaps}})</span></h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Not tracked at this time (scrolls sideways)">
+    <table>
+      <thead><tr><th>Person</th><th>Last recorded</th></tr></thead>
+      <tbody>{{range .Gaps}}<tr data-person-id="{{.PersonID}}"><td>{{.Name}} <a class="muster-at-seen" href="/last-seen?person={{.PersonID}}">last seen<span class="sr-only"> — {{.Name}}</span></a></td><td>{{.Text}}</td></tr>{{end}}</tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Unplaced}}
+  <section data-muster-at-section="unplaced">
+    <h3 class="cat-head">Could not be placed <span class="count">({{len .Unplaced}})</span></h3>
+    <p class="note">These records may put someone on site at this time, but not with confidence. They are listed so
+    nobody is missed — confirm each one another way.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Could not be placed (scrolls sideways)">
+    <table>
+      <thead><tr><th>Person</th><th>Time in</th><th>Time out</th><th>Why</th></tr></thead>
+      <tbody>{{range .Unplaced}}<tr data-person-id="{{.PersonID}}"><td>{{.Name}} <a class="muster-at-seen" href="/last-seen?person={{.PersonID}}">last seen<span class="sr-only"> — {{.Name}}</span></a></td><td>{{.In}}</td><td>{{.Out}}</td><td>{{.Why}}</td></tr>{{end}}</tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+</section>
+{{end}}
+{{with .CSVHref}}<p class="actions"><a class="button" href="{{.}}" data-muster-at-csv>Download CSV</a>
+  <small class="note">every name listed above, one row each</small></p>{{end}}
+<p class="note">Each time is as its own post's clock recorded it. A time the record marks as uncertain, within
+{{.Margin}} of the moment, puts the record under “Could not be placed” rather than leaving it off. Built in {{.Elapsed}}.</p>
+{{end}}
+{{end}}
+
+{{if .Dispatch}}
+<nav class="pagenav"><a href="/analytics">dispatch analytics</a> · <a href="/search">search</a></nav>
+{{else}}
+<nav class="pagenav"><a href="/muster">live muster board</a> · <a href="/search">search</a> · <a href="/trips">operator console</a> ·
+  <a href="/gate">gate</a> · <a href="/status">status page</a></nav>
+{{end}}
+{{template "page_close" .}}
+
+{{define "muster_at_member"}}{{$id := index .Sh.PersonOf .M.VisitID}}<li class="muster-at-person" data-person-id="{{$id}}" data-visit-id="{{.M.VisitID}}">{{.M.PersonName}}{{range index .Sh.Marks .M.VisitID}} <span class="muster-at-mark">{{.}}</span>{{end}} <a class="muster-at-seen" href="/last-seen?person={{$id}}">last seen<span class="sr-only"> — {{.M.PersonName}}</span></a></li>{{end}}

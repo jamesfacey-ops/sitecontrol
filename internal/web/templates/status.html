@@ -1,0 +1,79 @@
+{{template "page_open" (dict
+  "Title" (printf "%s — Site Control" .Cfg.DisplayName)
+  "Main" ""
+  "Data" .)}}
+{{/* Reached through the "GET /" catch-all (web.go Handler): the requested
+     path has no page on this post. Said first, and the path named — a road
+     post's /orientation lands here because it administers no orientation,
+     and an officer who followed a link there should read why, not a table
+     of db paths. Absent at /status itself. */}}
+{{with .FallThrough}}
+<div class="notice notice-warn"><strong>NO SUCH PAGE</strong> — there is no page at <code>{{.}}</code> on this
+post; this is the post's status page. The officer's screen is <a href="/gate">the gate (sign in / out)</a>.</div>
+{{end}}
+<h1>{{.Cfg.DisplayName}} <small class="note">status page</small></h1>
+
+{{/* ⟦was: the weather-phase panel — the current phase, its provenance, the
+     Normal / Phase 2 / Phase 3 declaration buttons, the R1 superseded
+     notice and the configured phase table (or, at a post the board did not
+     govern, a one-line note). Weather phases removed, James 2026-10-04:
+     "go ahead and delete the phase conditions". */}}
+
+{{template "shift_totals" .Shift}}
+<p>sitectl is running. Database self-created and answering.</p>
+{{/* FIX16 D (James, 2026-10-06): the nightly backup, as a compact tile in
+     the Signal tile's style — state in a word, never hue alone. Amber past
+     30 h, red past 36 h or when the last attempt failed. Not on the
+     dispatch host's view of this page. */}}
+{{with .Backup}}{{if $.BackupTile}}
+<section class="an-grid">
+  <div class="an-tile{{if eq .Level "red"}} an-tile-crit{{else if eq .Level "amber"}} an-tile-warn{{end}}" data-status-tile="backup" data-backup-level="{{.Level}}">
+    <div class="an-num">{{.Word}}</div>
+    <div class="an-label">Backup</div>
+    <div class="an-sub">{{.Summary}}</div>
+  </div>
+</section>
+{{end}}{{end}}
+<div class="card">
+<div class="table-wrap" tabindex="0" role="region" aria-label="Status table 1 (scrolls sideways)">
+<table class="plain">
+  <tr><th>site_id</th><td><code>{{.Cfg.SiteID}}</code></td></tr>
+  <tr><th>node_epoch</th><td>{{.Cfg.NodeEpoch}}</td></tr>
+  <tr><th>schema_version (from DB)</th><td>{{.SchemaVersion}}</td></tr>
+  <tr><th>db_path</th><td><code>{{.DBPath}}</code></td></tr>
+  <tr><th>listen_addr</th><td><code>{{.Cfg.ListenAddr}}</code></td></tr>
+  <tr><th>sync interval</th><td>{{.Cfg.SyncIntervalSeconds}}s{{if .Sync.Available}} <small class="note">— a peer with no
+    sync error reads STALE once its last successful pull is older than {{.Sync.StaleMultiple}}× this
+    ({{.Sync.StaleAfter}}); the ceiling is derived from this value at render time (SYNC-HONESTY). A peer
+    with no completed sync for longer than the same ceiling shows as LOST SIGNAL in the top bar of every
+    page — unless it answers and refuses this post's key, which is a key fault, not lost signal (FIX15)</small>{{end}}</td></tr>
+  {{- /* ⟦LOCK — §54, 2026-09-03⟧ BOTH spellings on this row track config.go:111.
+     The <th> is not prose: this table lists TOML config KEYS against live values, and the key an
+     operator must type is `muster_min_group_size`. `muster_min_crew_size` survives only as a
+     migration SOURCE (config.go:364) — Load() REFUSES to start on it (config.go:384) — so
+     displaying it as canonical sent an operator to edit a line that has no effect. The field it
+     read did not exist at all: W8-21 renamed it and templates bind at EXECUTION, so this page
+     returned 500 while `go build` and `go vet` stayed silent.
+     ⟦was: "  <tr><th>muster_min_crew_size</th><td>{{.Cfg.MusterMinCrewSize}}</td></tr>"⟧ */}}
+  <tr><th>muster_min_group_size</th><td>{{.Cfg.MusterMinGroupSize}}</td></tr>
+  <tr><th>peers</th><td>{{range .Cfg.Peers}}<code>{{sitelabel .SiteID}}</code> → {{.BaseURL}}<br>{{else}}<em>none configured</em>{{end}}</td></tr>
+  <tr><th>uptime</th><td>{{.Uptime}}</td></tr>
+  {{- with .Backup}}
+  <tr data-backup-line="{{.Level}}"><th>Backup</th><td><span class="chip {{if eq .Level "red"}}chip-crit{{else if eq .Level "amber"}}chip-warn{{else if eq .Level "ok"}}chip-ok{{else}}chip-ice{{end}}"><strong>{{.Word}}</strong></span> — {{.Summary}}{{if .HasCopy}}<br><small class="note">newest verified copy <code>{{.Newest}}</code> in <code>{{.Dir}}</code>{{with .Mirror}}, second copy to <code>{{.}}</code>{{end}}; taken nightly, the 7 newest kept; amber after 30 h, red after 36 h or a failed attempt</small>{{else}}<br><small class="note">copies go to <code>{{.Dir}}</code>{{with .Mirror}} and <code>{{.}}</code>{{end}}</small>{{end}}</td></tr>
+  {{- end}}
+</table>
+</div>
+</div>
+{{template "sync_status" .}}
+{{/* FIX16f: the lost-signal history this post recorded (signal_history.go). */}}
+<section class="card" aria-labelledby="signal-history-h">
+<h2 id="signal-history-h">Lost-signal history</h2>
+{{if .SignalNotRecorded}}<p class="note">Not recorded at this post yet — the recorder has not run here.</p>
+{{else if .SignalErr}}<div class="notice notice-critical"><strong>UNAVAILABLE</strong> — {{.SignalErr}}.</div>
+{{else if .SignalHistory}}<p class="note">The newest {{len .SignalHistory}} outage(s) this post recorded.</p>
+{{template "signal_table" .SignalHistory}}
+{{else}}<p class="note">No lost signal recorded since this record was switched on.</p>{{end}}
+<p><a href="/history/signal">Full lost-signal history</a></p>
+</section>
+<nav class="pagenav"><a href="/gate">gate (sign in / out)</a> · <a href="/trips">trips</a> · <a href="/muster">muster</a> · <a href="/muster/print">print muster</a> · <a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/history/overdue">overdue history</a> · <a href="/history/signouts">missed sign-outs</a> · <a href="/history/signal">lost-signal history</a> · <a href="/login">log in</a></nav>
+{{template "page_close" .}}

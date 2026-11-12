@@ -1,0 +1,124 @@
+{{/* _topbar — the persistent operator bar (UI brief §Structure): site id,
+     sync state, the recording post (D-5), and the C7 alert banner, always
+     visible and never scrolled away. ⟦was: also the weather-phase chip and
+     the R1 "superseded" chip — weather phases removed, James 2026-10-04⟧
+
+     IT INVENTS NOTHING. Every slot is guarded by `has` (templatefuncs.go),
+     which asks the handler's OWN data value whether it carries that field.
+     A page whose handler never populated a field renders that slot as
+     ABSENT — not as a placeholder, not as a guess, and not by adding
+     plumbing to the handler. Concretely, today:
+
+       page           site  sync  post   alerts
+       /status        Cfg    yes    no     yes   (GET / itself redirects to /gate)
+       /trips         yes    yes    yes    yes
+       /gate          yes    no     yes    yes
+       /muster        yes    yes    no     yes
+       /login         Cfg    no     no     no
+
+     (/trips and /muster gained the sync slot under SYNC-HONESTY,
+     2026-09-09: the dispatcher's console and the muster both depend on
+     records that reach this post only through sync. /gate does not carry
+     it yet — same one-field change, deferred while three lanes were on
+     that screen.) The chip's text is syncStatusView.Summary, shared with
+     the muster sheet's printed sync block so glass and paper say the same
+     words.
+
+     The whole bar is hidden on paper (see the print block in _styles.html):
+     a printed sheet is a point-in-time roster, not a live alert surface —
+     which is why the muster prints its own sync block instead. */}}
+{{define "topbar"}}
+{{- $site := field . "SiteID" -}}
+{{- $cfg := field . "Cfg" -}}
+{{- $gateMode := field . "GateMode" -}}
+<header class="topbar">
+  <div class="topbar-strip">
+    {{/* FIX10 (James 2026-10-05): ONE Home button, first slot of the strip on
+         every page, so an operator can always get back to where they work.
+         A plain link (works with scripting off), never inside a form. The
+         markup is the POST-host form: href="/gate", the page "/" and a
+         login both land on. homelink.go rewrites ONLY this one tag per
+         response: on the dispatch host the href becomes /analytics (same
+         dispatchHost rule as the read-only guard, so a Home click can never
+         be bounced to a console page), and aria-current="page" is added
+         when the request is already at that landing page. The login page
+         has no use for it (nobody is signed in to go home to), so it is
+         left off there — recognised by the login form's own NotRecorded
+         field. */}}
+    {{if not (has . "NotRecorded")}}<a class="home-btn" href="/gate" data-home>Home</a>{{end}}
+    <div class="topbar-site" data-topbar-site>
+      {{if $site}}<span class="site-id">{{sitelabel $site}}</span>
+      {{else if $cfg}}<span class="site-id">{{sitelabel $cfg.SiteID}}</span>{{end}}
+      {{if $cfg}}{{with $cfg.SiteLongName $cfg.SiteID}}<span class="site-name">{{.}}</span>{{end}}{{end}}
+    </div>
+
+    {{/* ⟦R-28, team-lead, 2026-09-16⟧ "a small switch mode link sits in
+         the header" — GateMode is populated ONLY by gate.html/
+         gate_vehicle.html (gate.go's renderGatePage), so this chip is
+         silently absent everywhere else (the `has` guard, same pattern
+         every other slot on this bar already uses); VehicleModeEnabled is
+         the SAME site-has-a-destination derivation the login choice and
+         the footer link use, so all three can never disagree about
+         whether this site offers a second mode at all. */}}
+    {{if and $gateMode $cfg}}{{if $cfg.VehicleModeEnabled}}
+    <div class="chip chip-mode">
+      {{if eq $gateMode "vehicle"}}<a href="/gate">individual check-in</a>
+      {{else}}<a href="/gate/vehicle">vehicle check-in</a>{{end}}
+    </div>
+    {{end}}{{end}}
+
+    {{if has . "Sync"}}{{with field . "Sync"}}
+    {{if not .Available}}
+    <div class="chip chip-warn">
+      <span class="chip-label">sync</span>
+      <span class="chip-value">{{.Summary}}</span>
+    </div>
+    {{else if .Degraded}}
+    <div class="chip chip-crit">
+      <span class="chip-label">sync</span>
+      <span class="chip-value">{{.Summary}}</span>
+    </div>
+    {{else if .Peers}}
+    <div class="chip chip-ok">
+      <span class="chip-label">sync</span>
+      <span class="chip-value">{{.Summary}}</span>
+    </div>
+    {{else}}
+    <div class="chip">
+      <span class="chip-label">sync</span>
+      <span class="chip-value">{{.Summary}}</span>
+    </div>
+    {{end}}
+    {{end}}{{end}}
+
+    {{if has . "Post"}}{{template "post_chip" .}}{{end}}
+
+    {{/* The theme switch (_styles.html has the design note, theme.go the
+         route). Unlike every slot above it is NOT `has`-guarded — it
+         invents no handler data, it is a plain static control identical on
+         every page, so there is no field for a precondition to check. TWO
+         links, of which the stylesheet shows exactly one: the one naming
+         the theme the page is NOT currently showing, decided by the same
+         guard that picks the palette. Plain GETs, so they work with
+         scripting off (UI brief constraint 2); page_close's script only
+         spares the reload when scripting is on. */}}
+    <div class="theme-switch">
+      <a class="theme-switch-to-dark" href="/theme?mode=dark" data-theme-set="dark">Switch to dark</a>
+      <a class="theme-switch-to-light" href="/theme?mode=light" data-theme-set="light">Switch to light</a>
+    </div>
+  </div>
+
+  {{/* FIX15 (James, 2026-10-06): the LOST SIGNAL line rides the stuck
+       alert area of every page — after the OVERDUE / VERIFY lines, outside
+       their live region. lostsignalslot is a marker lostsignal.go fills per
+       request (the wording depends on the host). A page with no alert strip
+       (the site detail view, which deliberately carries no Banner) gets the
+       same slot in its own .topbar-signal box, empty and hidden unless a
+       line is drawn into it. The login page gets none: nobody is signed in. */}}
+  {{if has . "Banner"}}
+  <div class="topbar-alerts">{{template "alert_banner" .}}{{lostsignalslot}}</div>
+  {{else if not (has . "NotRecorded")}}
+  <div class="topbar-signal">{{lostsignalslot}}</div>
+  {{end}}
+</header>
+{{end}}

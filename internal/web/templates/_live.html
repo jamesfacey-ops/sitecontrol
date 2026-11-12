@@ -1,0 +1,18 @@
+{{/* an_live — the live/paused line shared by the only two pages that
+     refresh themselves, /analytics and /analytics/site/{site} (James,
+     2026-10-03: both every 60 s, each with a visible "Pause live updates"
+     link; no other page refreshes). Plain links, so it works with scripting
+     off and keeps nothing in storage: ?live=0 renders the page WITHOUT the
+     meta refresh (page_open is handed Refresh 0) and says so; Resume drops
+     the switch. Reads .Refresh and .Paused from the page's data.
+
+     FIX7 (James, 2026-10-05: "give me a timer on it as well so they know
+     it's something"): a live page also carries a countdown to the next
+     reload. The meta refresh stays the ONLY mechanism; the countdown is
+     display. With scripting off the countdown stays [hidden] and the static
+     "refreshes every N s" reads as before. With it on, an-countdown-script
+     (_layout.html page_close) shows the countdown and moves the static text
+     to .sr-only, so a screen reader hears the fixed interval once while the
+     ticking number is aria-hidden and never announced. Paused pages carry
+     no countdown at all. */}}
+{{define "an_live"}}<p class="an-live note" data-an-live="{{if .Paused}}paused{{else}}{{.Refresh}}{{end}}">{{if .Paused}}<strong>Live updates paused</strong> — this page will not refresh itself. <a href="?live=1">Resume</a>{{else}}Live — <span data-an-every>refreshes every {{.Refresh}} s</span><span class="an-countdown" data-an-countdown="{{.Refresh}}" aria-hidden="true" hidden>updates in <span class="an-countdown-n">{{.Refresh}}</span> s</span>. <a href="?live=0">Pause live updates</a>{{end}}</p>{{end}}

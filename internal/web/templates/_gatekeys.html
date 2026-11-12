@@ -1,0 +1,163 @@
+{{/* _gatekeys.html — ⟦FIX16c, James, 2026-10-06⟧ THE KEYBOARD-ONLY
+     CHECK-IN LOOP's page-level half, shared by both gate pages (gate.html,
+     gate_vehicle.html). The Enter-walk through each form lives with that
+     form's own script (gate_script, gate_vehicle.html); this file holds the
+     single-key shortcuts, the on-site list's arrow keys, and the help that
+     names them.
+
+     THE KEYS, and why these: one letter each, no modifier at all — the
+     work PC reaches this box over remote desktop and swallows Super, and
+     Ctrl+Shift+<digit> rewrites the key. A letter is only ever a shortcut
+     while the cursor is NOT in a text box (or a select, whose letters pick
+     an option): typing a name that contains an "o" must type an "o".
+
+     NOTHING HERE WRITES OR CONFIRMS. Every key moves focus or follows a
+     plain link; the one key that presses a button (Enter on the on-site
+     list) presses "Check out selected", which only stages the ticked
+     people onto the check-out confirm box — the commit and its own confirm
+     are still a separate, deliberate step.
+
+     PROGRESSIVE: the help is served `hidden` and shown by the script, so
+     with scripting off nobody is told about keys that would do nothing. */}}
+
+{{define "gate_keys_help"}}
+<details class="gate-keys" id="gate-keys" data-gate-keys{{if and (ne .GateMode "vehicle") .Cfg.VehicleModeEnabled}} data-vehicle-page="/gate/vehicle"{{end}} hidden>
+  <summary>Keyboard shortcuts</summary>
+  <p class="note">Single keys work when the cursor is not in a text box — <kbd>Esc</kbd> leaves one.</p>
+  <dl class="gate-keys-list">
+    <dt><kbd>i</kbd></dt><dd>Check in — the Last name box</dd>
+    <dt><kbd>o</kbd></dt><dd>Check out — the on-site list{{if eq .InProgress "out"}} (or the open check-out box){{end}}</dd>
+    <dt><kbd>v</kbd></dt><dd>{{if and (ne .GateMode "vehicle") .Cfg.VehicleModeEnabled}}Vehicle check-in page{{else}}Vehicle number box{{end}}</dd>
+    <dt><kbd>/</kbd></dt><dd>Search the on-site list</dd>
+    <dt><kbd>h</kbd></dt><dd>Home</dd>
+    <dt><kbd>?</kbd></dt><dd>Show or hide this list</dd>
+  </dl>
+  <p class="note">In a form, Enter moves to the next box, in the same order as Tab, and stops at every question
+  — a “Confirm who this is” ask, a warning, the final “Check in now?” — rather than answering it.
+  On the on-site list, Up and Down move between people, Space ticks, Enter goes to the check-out box for the ticked people.
+  After a check-in or check-out the cursor is back in the Last name box.</p>
+</details>
+{{end}}
+
+{{define "gate_keys_script"}}
+<script id="gate-keys-script">
+(function () {
+  var help = document.querySelector('[data-gate-keys]');
+  if (help) help.hidden = false;
+
+  function visible(el) { return !!el && !el.disabled && el.getClientRects().length > 0; }
+  function typingIn(t) {
+    if (!t || !t.tagName) return false;
+    if (t.isContentEditable) return true;
+    var tag = t.tagName;
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (tag !== 'INPUT') return false;
+    return ['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'range', 'color', 'file'].indexOf((t.type || 'text').toLowerCase()) === -1;
+  }
+  function first(sel) {
+    var all = document.querySelectorAll(sel);
+    for (var i = 0; i < all.length; i++) if (visible(all[i])) return all[i];
+    return null;
+  }
+  function rosterBoxes() {
+    var out = [];
+    document.querySelectorAll('.gate-roster label.picker-row').forEach(function (row) {
+      var b = row.querySelector('input[type=checkbox]');
+      if (!row.hidden && visible(b)) out.push(b);
+    });
+    return out;
+  }
+  function go(href) { if (href) window.location.href = href; }
+
+  var actions = {
+    i: function () {
+      var box = first('#new-in');
+      if (box) box.focus(); else go('/gate');
+    },
+    o: function () {
+      var staged = first('.vehicle-form-compact input[name="vehicle"]');
+      if (staged) { staged.focus(); return; }
+      var b = rosterBoxes()[0];
+      if (b) b.focus();
+    },
+    v: function () {
+      var page = help && help.getAttribute('data-vehicle-page'); /* set only where vehicle mode exists and this is not it */
+      if (page) { go(page); return; }
+      var box = first('#vehicle-ind, #vehicle-in, .vehicle-form-compact input[name="vehicle"]');
+      if (box) box.focus();
+    },
+    '/': function () {
+      var f = first('.gate-roster .picker-filter');
+      if (f) f.focus(); else go('/search');
+    },
+    h: function () {
+      var home = document.querySelector('a[data-home]');
+      go(home ? home.getAttribute('href') : '/gate');
+    },
+    '?': function () {
+      if (!help) return;
+      help.open = !help.open;
+      var s = help.querySelector('summary');
+      if (s) s.focus();
+    }
+  };
+
+  /* Esc LEAVES a text box (focus parks on the page), so the single keys
+     work without the mouse — after a save the cursor is in the Last name
+     box, and a letter there must type. Capture phase, so it sees the box
+     before the box's own Esc runs, and it steps aside whenever Esc already
+     means something there: an open suggestion list (it closes the list) or
+     a standing "Confirm who this is" ask (it withdraws the ask). */
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !typingIn(e.target) || e.target.tagName === 'SELECT') return;
+    var t = e.target;
+    if (t.getAttribute('aria-expanded') === 'true') return;
+    var f = t.closest('form');
+    var ask = f && f.querySelector('.adopt-confirm');
+    if (ask && !ask.hidden) return;
+    t.blur();
+  }, true);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.repeat) return;
+    if (typingIn(e.target)) return;
+    var act = Object.prototype.hasOwnProperty.call(actions, e.key) ? actions[e.key] : null;
+    if (!act) return;
+    e.preventDefault();
+    act();
+  });
+
+  /* THE ON-SITE LIST. Up/Down step between the visible rows (a filtered-
+     out row is skipped, never ticked); Enter presses "Check out selected"
+     — the list form's first button, so this is what Enter would already
+     mean there, made explicit so it can never be another button. Enter or
+     Down in the list's search box goes to the first match. */
+  document.querySelectorAll('.gate-roster').forEach(function (aside) {
+    aside.addEventListener('keydown', function (e) {
+      var t = e.target;
+      if (!t || !t.matches || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (t.matches('.picker-filter')) {
+        if (e.key !== 'Enter' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        var b0 = rosterBoxes()[0];
+        if (b0) b0.focus();
+        return;
+      }
+      if (!t.matches('label.picker-row input[type=checkbox]')) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        var boxes = rosterBoxes(), i = boxes.indexOf(t);
+        var j = i + (e.key === 'ArrowDown' ? 1 : -1);
+        e.preventDefault();
+        if (j >= 0 && j < boxes.length) boxes[j].focus();
+        else if (j < 0) { var f = first('.gate-roster .picker-filter'); if (f) f.focus(); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        var form = t.closest('form');
+        var btn = form && form.querySelector('button[formaction="/gate/checkout/select"]');
+        if (btn && !btn.disabled) btn.click();
+      }
+    });
+  });
+})();
+</script>
+{{end}}

@@ -1,0 +1,20 @@
+{{template "page_open" (dict
+  "Title" (printf "%s — %s — Site Control" .Lead .Cfg.DisplayName)
+  "Main" "narrow"
+  "Data" .)}}
+{{/* refusal.html — the shared page for a refusal that has no form of its
+     own to re-render (refusal.go, W4 2026-10-03). It replaced a bare
+     text/plain body on a blank screen. ONE notice, bold KIND first, the
+     officer's sentence after it (already passed through officerText), and
+     the way back. Nothing here is a control that records anything. */}}
+{{/* ⟦fix4 H, 2026-10-05 (R6-5, the F3f family)⟧ the post's name once —
+     sitelabel IS the display name when one is configured, so the old
+     "Name (Name)" heading said it twice. ⟦was: the display name, then sitelabel in brackets⟧ */}}
+<h1>{{sitelabel .SiteID}}</h1>
+<div class="notice notice-critical refusal-notice" role="alert"><strong>{{.Lead}}</strong> — {{.Message}}</div>
+{{if and .FromPOST (ne .Status 405)}}{{/* James, 2026-10-04 (L01 F-7): a 405 has no form to go back to (the site detail view is read-only). */}}
+<p>Your browser's <strong>Back</strong> button returns to the form with what you typed still in it. Or go to <a href="{{.Back}}">the page you were on</a>.</p>
+{{else}}
+<p>Go to <a href="{{.Back}}">the page you were on</a>, or to <a href="/gate">the gate (sign in / out)</a>.</p>
+{{end}}
+{{template "page_close" .}}

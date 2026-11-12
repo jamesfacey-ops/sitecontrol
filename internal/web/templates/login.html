@@ -1,0 +1,58 @@
+{{template "page_open" (dict
+  "Title" (printf "Log in — %s — Site Control" .Cfg.DisplayName)
+  "Main" "narrow"
+  "Data" .)}}
+{{/* ⟦fix4 H⟧ the post's name once, as on /status and the refusal page. */}}
+<h1>{{sitelabel .Cfg.SiteID}}</h1>
+{{if .NotRecorded}}
+{{/* S-018 (W4, 2026-10-03): opens with its bold KIND like every other
+     notice in the app — the first words read are what happened. */}}
+<p class="not-recorded" role="alert"><strong>NOT RECORDED.</strong> The action you just submitted
+was NOT recorded, because this browser was not signed in. {{if .Next}}Sign in and you will be taken back to the page
+you were on to enter it again.{{else}}Sign in{{if .Cfg.VehicleModeEnabled}} with the button for the page you
+were on{{end}}, then enter it again.{{end}}</p>
+{{else}}
+{{/* ⟦R-28 revision 3, team-lead, 2026-09-16⟧ item 2: says what to do
+     next, not what the site is for in general — and only promises a mode
+     choice where one is actually offered below. */}}
+{{if .Cfg.VehicleModeEnabled}}
+<p>Enter the site password, then choose how you're checking people in.</p>
+{{else}}
+<p>Enter the site password.</p>
+{{end}}
+{{end}}
+{{with .Error}}<p class="err" role="alert"><strong>NOT SIGNED IN.</strong> {{.}}</p>{{end}}
+{{with .Cfg.LoginHint}}<p class="login-hint">Demo login: {{.}}</p>{{end}}
+<form method="post" action="/login">
+  <input type="hidden" name="next" value="{{.Next}}">
+  {{if .NotRecorded}}<input type="hidden" name="not_recorded" value="1">{{end}}
+  {{/* ⟦R-28 revision 3, team-lead, 2026-09-16⟧ item 2: label and input as
+       separate elements (id/for, the SAME shape every other field on this
+       app's forms already uses — e.g. gate.html's own "Last name") rather
+       than the input wrapped inside an inline-block <label> — a
+       shrink-wrapped label was the actual reason width:100% on the input
+       still rendered narrower than the button row below it: the input
+       was filling 100% of the LABEL's own content-sized box, not the
+       form's. */}}
+  <p class="login-password-field">
+    <label for="login-password-input">Site password:</label><br>
+    <input type="password" id="login-password-input" name="password" class="login-password" autofocus required>
+  </p>
+  {{/* ⟦R-28, team-lead, 2026-09-16⟧ the mode choice, offered ONLY where
+       this site has a peer to check a whole vehicle in from — everywhere
+       else the plain single "Log in" button (unchanged from before this
+       ruling) is all there is, and gate.go never sees a "mode" value it
+       has to second-guess (handleLoginSubmit ignores "mode" outright
+       unless Cfg.VehicleModeEnabled() agrees). ONE password field, TWO
+       submit buttons — only the pressed one's name=value rides the POST,
+       so this needs no script and no second form. */}}
+  {{if .Cfg.VehicleModeEnabled}}
+  <p class="login-mode-choice">
+    <button type="submit" name="mode" value="individual" class="button-primary">Individual check-in</button>
+    <button type="submit" name="mode" value="vehicle" class="button-primary">Vehicle check-in</button>
+  </p>
+  {{else}}
+  <p><button type="submit" class="button-primary">Log in</button></p>
+  {{end}}
+</form>
+{{template "page_close" .}}

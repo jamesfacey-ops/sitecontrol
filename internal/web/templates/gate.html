@@ -1,0 +1,211 @@
+{{template "page_open" (dict
+  "Title" (printf "Gate — %s — Site Control" (sitelabel .SiteID))
+  "Main" "gate gate-individual"
+  "Data" .)}}
+{{/* gate.html — THE R-27 INDIVIDUAL PAGE (James, 2026-09-16).
+
+     ⭐ His words: "it is too much i need it designed for persons that are
+     retired and still hunt and peck for a keyboard so nice and streamlined
+     everything for checking in a singel person should be on the top half
+     of the page and the bottom half should be the onsite roster so the
+     guard can select multiple persons to be checked out at the same time."
+
+     TWO HALVES, NOTHING ELSE. Top: one CHECK IN form, one person, one big
+     button (handleGateCheckInSingle, gate.go — the SAME R-25 one-action
+     rhythm that already existed, now the page's ONLY inbound door). Bottom:
+     the on-site roster, tick-many, CHECK OUT SELECTED opens a compact
+     confirm box that reuses the OUTBOUND gate_vehicle_form (Compact mode —
+     see that define's own comment in gate_vehicle.html) rather than a
+     second departure path.
+
+     THE WHOLE-VEHICLE GROUP FORM MOVED, unchanged in behaviour, to
+     GET /gate/vehicle — see gate_vehicle.html's own file comment. This
+     file therefore does NOT define dup_warnings / not_entered_notices /
+     stale_orient_tick_notices / onsite_roster_table / gate_vehicle_form /
+     gate_script — those live in gate_vehicle.html and are called here by
+     name (html/template's ParseFS registers every {{define}} in one global
+     namespace across all files under templates/*.html — see
+     internal/web/web.go's `tmpl`).
+
+     PROSE IS DELIBERATELY THIN HERE (James: "nice and streamlined"). What
+     stays is text that fires at the moment of action — a refusal, a held-
+     out notice, the checkout confirm's own muster warning — never a rule
+     citation or a "what this is for" expander. */}}
+
+{{/* ⟦R-27 revision 3, team-lead, 2026-09-16⟧ no <h1> — the shared top bar
+     already names the post (post_chip), and the page title carries "Gate"
+     for the tab; a second on-page heading was pure vertical cost bought
+     back for the roster below (2b). */}}
+{{/* ⟦A-03, fix3 2026-10-04⟧ …but a page with NO <h1> fails WCAG 1.3.1 /
+     2.4.6 for a screen reader, which navigates by heading and announced
+     none here (axe "page-has-heading-one"). One <h1>, visually hidden
+     (.sr-only), so the R-27 decision about vertical space stands. */}}
+<h1 class="sr-only">{{sitelabel .SiteID}} gate — check in one person</h1>
+{{template "time_warnings" .TimeWarnings}}
+{{template "dup_warnings" .DupWarnings}}
+{{template "aboard_warnings" .AboardWarnings}}
+{{template "not_entered_notices" .NotEntered}}
+{{template "stale_orient_tick_notices" .StaleOrientTicks}}
+{{template "incomplete_checkins" .}}
+{{template "shift_totals" .Shift}}
+
+<div class="gate-layout gate-layout-individual">
+<div class="gate-work">
+
+{{/* ---- TOP HALF: CHECK IN, ONE PERSON --------------------------------
+     Fields in tab order (James's own field list, via the team lead brief):
+     Last name (type-ahead over the whole database) -> First name ->
+     Company -> Vehicle # -> [orientation tick, orientation posts only] ->
+     CHECK IN. Enter submits (the field's own keydown handler resolves a
+     pick first — see the script block below — exactly the R-10 "always
+     confirm before adopting" ask the vehicle page's open box already
+     uses, reused rather than re-invented).
+
+     ⟦R-27 supersedes R-25 HERE ONLY⟧ a typed vehicle # records THAT
+     vehicle for THIS one person (and stays filled for the next); it no
+     longer switches the page into group-accumulate mode — group entry of
+     a whole vehicle lives at /gate/vehicle now (R-28's future home). No
+     vehicle # -> an UNIDENTIFIED vehicle, exactly as R-17/R-18 already do
+     (handleGateCheckInSingle, unchanged). */}}
+<form method="post" action="/gate/checkin/single" class="individual-checkin-form">
+  <input type="hidden" name="gate_page" value="individual">
+  <input type="hidden" name="direction" value="in">
+  <input type="hidden" name="new_kind" class="p-open-kind" value="{{if .In.Rows}}{{(index .In.Rows 0).Kind}}{{else}}existing{{end}}">
+  <input type="hidden" name="new_value" class="p-open-value" value="{{if .In.Rows}}{{(index .In.Rows 0).Value}}{{end}}">
+  {{with .In.Error}}
+  <div class="notice notice-critical vehicle-error"><strong>Nothing was recorded.</strong> {{.}} {{with $.In.ErrorAmendPersonID}}<a href="/person/amend?person_id={{.}}">Open this record&rsquo;s amend page</a>{{end}}</div>
+  {{end}}
+  {{/* ⟦R-27 revision 3, team-lead, 2026-09-16⟧ row 1: Last | First. */}}
+  <div class="field-row">
+    <div class="field open-box">
+      <label for="new-in">Last name</label>
+      <input type="text" id="new-in" class="p-open" name="new_last" autocomplete="off"{{if and (not .Incomplete) (ne .InProgress "out")}} autofocus{{end}}
+             placeholder="e.g. Smith"{{if .In.Rows}} value="{{(index .In.Rows 0).NewLast}}"{{end}}>
+      <ul class="autocomplete-list" id="new-list-in"></ul>
+      {{/* R-10 (James: "always confirm before adopting") — the SAME ask
+           the vehicle page's open box uses, reused by the script below
+           rather than re-implemented; see that define's own comment
+           (gate_vehicle.html) for why an exact match asks too. Empty in
+           the served markup, filled by script; the JS-off path resolves
+           by exact match only (resolveTypedPerson), the same server rule
+           either way. */}}
+      <div class="adopt-confirm" role="status" hidden></div>
+    </div>
+    <div class="field">
+      <label for="new-first-in">First name</label>
+      <input type="text" id="new-first-in" name="new_first" autocomplete="off" placeholder="e.g. John"
+             {{if .In.Rows}}value="{{(index .In.Rows 0).NewFirst}}"{{end}}>
+    </div>
+  </div>
+  {{/* THE PICKED-PERSON CONFIRMATION (orchestrator, 2026-09-13; format per
+       the team lead's brief, 2026-09-16: Name — Position — Phone, empty
+       parts omitted) — answers "did I pick the right human?" with the one
+       fact that always answers it exactly: the record's own authored
+       Name. Never a possibly-divergent name PART (D-48/W5a stand) —
+       filled by script only. */}}
+  <p class="picked-confirm" role="status" hidden></p>
+  {{/* ⟦R-27 revision 3, team-lead, 2026-09-16⟧ row 2: Company | Vehicle #.
+       COMPANY IS ALWAYS VISIBLE (item 1) — never hidden behind a "not on
+       the roster" reveal the way it used to be. Three mutually exclusive
+       states, switched by the pick-resolution script (gate_vehicle.html's
+       finalizePick/syncFirstNameField): the picker+escape (typing a new
+       person — .company-new, shown by default), a read-only line naming
+       a RESOLVED pick's own company (.company-readonly), or — orientation
+       posts only — the R-12 refusal note in place of a picker a road post
+       would show, because an orientation post can never create a new
+       person at the gate at all (.company-orient-msg). Exactly one of the
+       three is visible at any time; the other two carry `hidden`. */}}
+  <div class="field-row">
+    <div class="field company-field" id="company-field-in">
+      <div class="company-new" id="company-new-in">
+        <label for="company-select-in">Company{{if not .HasOrientation}} <small class="note">(required)</small>{{end}}</label>
+        {{/* ⟦F-R3-L02-1, 2026-09-30⟧ a refusal re-render keeps the company
+             the officer picked (or typed under "not listed") — row 0's own
+             posted picker, which decorateRow leaves untouched on a NEW row —
+             instead of resetting it to "none on file". A fresh page has no
+             row and selects nothing, exactly as before. */}}
+        {{$co := ""}}{{$coNew := ""}}{{if .In.Rows}}{{$co = (index .In.Rows 0).CompanyID}}{{$coNew = (index .In.Rows 0).Company}}{{end}}
+        <select id="company-select-in" name="new_company_id" class="p-open-company-id">
+          <option value="">— none on file —</option>
+          {{range .Companies}}<option value="{{.ID}}"{{selectedattr (eq $co .ID)}}>{{.Label}}</option>{{end}}
+          <option value="__new__"{{selectedattr (eq $co "__new__")}}>— not listed: add a new company —</option>
+        </select>
+        <label class="new-name">New company <input type="text" name="new_company" class="p-open-company" autocomplete="off"{{with $coNew}} value="{{.}}"{{end}}></label>
+      </div>
+      <p class="company-readonly" hidden></p>
+      {{/* ⟦D-88⟧ gated, not just hidden: a road post's page must carry
+           ZERO orientation vocabulary, even inert — the element's own
+           class name is itself an occurrence, so it is omitted from the
+           DOM entirely rather than shipped-but-hidden (same discipline
+           gate_vehicle.html's orientBox/orientTarget already follow). */}}
+      {{if .HasOrientation}}
+      <p class="company-orient-msg" hidden><small class="note">Not on the roster. Enrol them at the <a href="/roster">roster page</a> first, then check them in — this will be refused otherwise.</small></p>
+      {{end}}
+    </div>
+    <div class="field">
+      <label for="vehicle-ind">Vehicle number</label>
+      <input type="text" id="vehicle-ind" name="vehicle" autocomplete="off" placeholder="e.g. TRK-14"
+             {{with .In.Vehicle}}value="{{.}}"{{end}}>
+    </div>
+  </div>
+  <p class="add-hint" role="alert" hidden></p>
+  {{/* ⟦R-27, D-88⟧ orientation posts only (D-88: a road post has no
+       orientation concept — this section does not exist there). Tied
+       to whichever roster pick is current: harmless, no-op if the
+       picked person already holds this post's orientation
+       (CompleteOrientationsSkippingHeld, gate.go), and meaningless for
+       a NEW person (R-12 already refuses off-roster creation at an
+       orientation post, before this could ever matter). */}}
+  {{if .HasOrientation}}
+  <div class="field-row orientation-row">
+    <label class="add-orientation-tick"><input type="checkbox" name="add_orientation" value="1"
+      {{if and .In.Rows (index .In.Rows 0).AddOrientation}} checked{{end}}>
+      <span>Orientation completed here</span></label>
+  </div>
+  <input type="hidden" name="orient_target" class="p-orient-target"
+         value="{{if .In.Rows}}{{(index .In.Rows 0).AddOrientationFor}}{{end}}">
+  {{end}}
+  <p class="commit-block">
+    <button type="submit" class="button-primary p-checkin-individual big-checkin"
+            data-commit-confirm="Check this person in now?">CHECK IN</button>
+  </p>
+  {{/* ⟦R-27 revision 3, team-lead, 2026-09-16⟧ item 2c: one line, small
+       links either side — the disclosure stays a <details>/<summary> (JS-
+       off still opens it; the vehicle page's own identical control uses
+       the same shared style) — the CSS on .note-links just lays it out
+       inline instead of as its own block above the button. */}}
+  <p class="note-links">
+    <a href="/roster">add to database</a>
+    {{/* ⟦FIX8, James, 2026-10-05⟧ labelled "Time in": this one-person
+         check-in is where a person who arrived on their own, at their own
+         time, gets that time recorded. */}}
+    <details class="roster-time"{{if eq .In.TimeSource "entered"}} open{{end}}><summary>Time in (if not now)</summary>
+    {{template "time_control" (dict "TimeSource" .In.TimeSource "OccurredAtWall" .In.OccurredAtWall "Legend" "Time in")}}
+    </details>
+  </p>
+</form>
+
+</div>{{/* .gate-work */}}
+
+{{/* ---- BOTTOM HALF: ON SITE NOW, CHECK OUT SELECTED -------------------
+     ⟦R-28⟧ moved into the shared "gate_roster_half" define
+     (gate_vehicle.html) so the vehicle-mode page's own bottom half is the
+     SAME markup, not a drifting copy — see that define's own comment. */}}
+{{template "gate_roster_half" .}}
+</div>{{/* .gate-layout */}}
+
+<script id="roster-data" type="application/json">{{.RosterJSON}}</script>
+{{template "gate_script" .}}
+{{template "picker_script" .}}
+
+{{/* ⟦R-28, team-lead, 2026-09-16⟧ "sites without vehicle mode show NO
+     choice and NO 'vehicle check-in' footer link" — this is that link,
+     now conditional on the same derivation the login page's own choice
+     and the header's switch-mode chip use (Cfg.VehicleModeEnabled,
+     config.go), never a separate flag that could disagree with either. */}}
+<nav class="pagenav">{{if .Cfg.VehicleModeEnabled}}<a href="/gate/vehicle">vehicle check-in</a> · {{end}}<a href="/trips">operator console</a> ·
+  <a href="/trips/detail">all trips &amp; drivers</a> ·
+  <a href="/muster">muster</a> · <a href="/analytics">dispatch analytics</a> · <a href="/search">search</a> · <a href="/status">status page</a></nav>
+{{template "gate_keys_help" .}}
+{{template "gate_keys_script" .}}
+{{template "page_close" .}}
