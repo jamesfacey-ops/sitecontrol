@@ -16,8 +16,8 @@ You need administrator rights once, during the install. Gate officers never need
 |---|---|---|
 | Use when | The sites have **no network link** to each other | The sites share a private link (VPN, WireGuard or similar) |
 | Network | None. Makes no connections and opens no port. Only this laptop's browser reaches it | One TCP port open between the posts, over the private link |
-| Warnings | **Never** shows "LOST SIGNAL", because there is no other site to lose | Shows "LOST SIGNAL" when the link drops (records catch up when it returns) |
-| Vehicles to other sites | Recorded as leaving ("Record run to Pad Post — no gate there, no timer"). No overdue timer, because the arrival can't reach this post | Timed. An overdue alert fires at both posts if the vehicle doesn't arrive in time |
+| Warnings | **Never** shows the "LOST SIGNAL" banner, because there is no other site to lose. The top bar reads "sync no peers configured" (the words "LOST SIGNAL" do appear on `/status`, but only in its explanatory text) | Shows the "LOST SIGNAL" banner when the link drops (records catch up when it returns) |
+| Vehicles to other sites | Recorded as leaving, on the operator console (`/trips`), with the driver on site: e.g. "Record run to Pad Post — no gate there, no timer". No overdue timer, because the arrival can't reach this post | Timed. An overdue alert fires at both posts if the vehicle doesn't arrive in time |
 | Person lookup across sites | No. Each site has its own list | Yes |
 
 Choose **Standalone** unless the private link is already approved and working.
@@ -131,8 +131,10 @@ The password can still be read later by an administrator, in
   the desktop.
 - **Load the roster:** log in, then open <http://127.0.0.1:8081/roster/import>.
   The CSV columns are *last name, first name, phone, company*, and optionally
-  *trade*. The page shows a preview and records nothing until you confirm. Or add
-  people at the gate as they arrive.
+  *trade*. The page shows a preview and records nothing until you confirm. People
+  can also be enrolled one at a time on `/roster`. At a post with
+  `orientation = true`, the gate refuses anyone who isn't enrolled. Enrol them
+  first: that records the post's orientation.
 - **Backups happen by themselves.** The first copy is taken about 2 minutes after
   the first start, then every night (around 03:00, or on waking if the laptop was
   asleep). The 7 newest copies are kept in `C:\ProgramData\SiteControl\backups\`.

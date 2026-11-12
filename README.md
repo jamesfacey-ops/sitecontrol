@@ -128,8 +128,16 @@ Commands are run in PowerShell from the repository folder.
 5. Open <http://127.0.0.1:8091> (Alpha Gate) and <http://127.0.0.1:8092> (Beta
    Gate). Log in with each post's password from `passwords.txt`.
    <http://127.0.0.1:8091/status> needs no login and shows sync health.
-6. Check someone in at Alpha, then dispatch a vehicle from Alpha to Beta. Within
-   about 10 seconds the vehicle appears on Beta's board with its countdown.
+6. At Alpha, open the roster page (<http://127.0.0.1:8091/roster>) and enrol a
+   test person. Both example posts have `orientation = true`, so a post refuses
+   to check in anyone who isn't enrolled, and enrolling at Alpha records Alpha's
+   orientation. Check the person in at Alpha's gate.
+7. On Alpha's operator console (<http://127.0.0.1:8091/trips>), dispatch a vehicle
+   to Beta Gate. Within about 10 seconds the vehicle appears on Beta's board
+   (<http://127.0.0.1:8092/trips>) with its countdown.
+8. Record the arrival at Beta. The run closes at both posts. The person is only
+   entered at Beta if they also hold Beta's orientation; otherwise Beta records
+   the arrival and says the person was not entered.
 
 A fresh install starts with an empty database. There is no demo data.
 
