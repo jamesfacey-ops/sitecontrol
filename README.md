@@ -105,8 +105,11 @@ Commands are run in PowerShell from the repository folder.
    It writes `alpha\site.toml`, `beta\site.toml`, `passwords.txt` (one login
    password per post) and `IT-CHECKLIST.txt`.
 3. Install **alpha** as a Windows service (see the next section), or run it in a
-   console window. Its database is set to `C:\ProgramData\SiteControl\alpha.db`:
+   console window. Its database is set to `C:\ProgramData\SiteControl\alpha.db`.
+   The program creates the database but not its folder, so when running by hand
+   create the folder first (the service installer does this for you):
    ```powershell
+   New-Item -ItemType Directory -Force C:\ProgramData\SiteControl
    .\sitectl.exe -config C:\SiteControl-season\alpha\site.toml
    ```
 4. In a second console window, run **beta** (its database is created in the
@@ -145,6 +148,10 @@ This:
 `db_path` in the config **must be an absolute path** under
 `C:\ProgramData\SiteControl\`, because a Windows service has no fixed working
 folder. Nightly backups go to a `backups` folder beside the database.
+
+When editing a config by hand, put Windows paths in **single quotes**
+(`db_path = 'C:\ProgramData\SiteControllpha.db'`). Inside double quotes, TOML
+reads backslashes as escape characters, and the post refuses to start.
 
 Delete the season output folder once every post is installed. It is the only
 other copy of every key.
@@ -188,7 +195,20 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o sit
 
 ### Test status
 
-TEST_STATUS_PLACEHOLDER
+`go vet ./...` is clean. There are about 2,100 tests. Some fail **on purpose** or
+for known reasons:
+
+- **Linux** (what the demo runs on): 16 fail. 14 are *declared reds*: tests
+  deliberately left failing to keep an open design question visible. Each is listed
+  with its reason in [`DECLARED-REDS.md`](DECLARED-REDS.md). The other 2 check
+  internal planning documents that aren't part of this repository.
+- **Windows**: 31 fail:
+  - the declared reds (more of them fail on Windows);
+  - the same 2 planning-document tests;
+  - 5 where the test itself doesn't suit Windows: it writes Windows paths into TOML
+    with backslash escapes, expects Unix file permissions, or reads Linux uptime;
+  - 1 timing-sensitive test (`TestD16PeerEventAheadOfThisClockShowsTheSkew`) that
+    also fails intermittently on the original source.
 
 ## Repository layout
 

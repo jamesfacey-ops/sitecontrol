@@ -24,3 +24,7 @@ config.toml
 .env
 passwords.txt
 IT-CHECKLIST.txt
+
+# Release downloads placed beside the repo
+SHA256SUMS.txt
+backups/
