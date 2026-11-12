@@ -13,8 +13,11 @@ share records, so a person checked in at one post can be found at any other.
 > **Status: prototype.** It runs as a five-post live demo. It is not yet in
 > production at a real gate.
 
+**To install it at a site, follow [INSTALL.md](INSTALL.md).**
+
 ## Contents
 
+- [Installing at a site](INSTALL.md)
 - [Documentation](#documentation)
 - [How it works](#how-it-works)
 - [Security and data, for IT](#security-and-data-for-it)
@@ -52,7 +55,12 @@ demo data, not real people.
   log. Screens are rebuilt from those events the same way on every post, so posts
   that have the same events show the same thing. Nothing is decided by "last
   write wins".
-- **Vehicle runs are timed.** When a vehicle is dispatched to another gated post, a
+- **Standalone or linked.** Where sites have no network link, each post is
+  installed **standalone**: it makes no connections, opens no port, and never shows
+  a "lost signal" warning. Vehicles leaving for other sites are still recorded,
+  without a timer. Where a private link exists, posts can be **linked** to share
+  records. See [INSTALL.md](INSTALL.md#choose-a-setup).
+- **Vehicle runs between linked posts are timed.** When a vehicle is dispatched to another gated post, a
   countdown starts. If the vehicle hasn't checked in at the other end in time,
   both posts raise an overdue alert. The alert survives a restart or power cut.
 
@@ -62,7 +70,7 @@ demo data, not real people.
 
 - **No cloud, no accounts, no telemetry.** The program connects out to only one
   thing: the other posts' addresses listed in its own config file (`base_url` of
-  each `[[peers]]` entry). The admin `swap` tools also contact a post address you
+  each `[[peers]]` entry). A standalone post has none, so it makes no connections. The admin `swap` tools also contact a post address you
   give them. Nothing else in the source makes an outbound connection.
 - **Self-contained web pages.** Pages are served by the program itself and load
   nothing from the internet: no external scripts, fonts or stylesheets.
@@ -132,7 +140,7 @@ with `sitectl.exe` in it:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass   # this window only; Windows blocks scripts by default
-Get-ChildItem -Recurse *.ps1 | Unblock-File # only needed if you downloaded the ZIP
+Get-ChildItem -Recurse | Unblock-File       # only needed if you downloaded the ZIP
 .\deploy\windows\install-service.ps1 -SourceExe .\sitectl.exe -ConfigSource C:\SiteControl-season\alpha\site.toml
 ```
 
@@ -220,7 +228,8 @@ for known reasons:
 | `internal/` | Domain model, event store, sync engine, overdue deadlines, web pages |
 | `deploy/windows/` | Windows service install / uninstall scripts |
 | `deploy/sitectl.service` | Linux systemd unit |
-| `deploy/examples/` | Example site plan (no secrets) |
+| `INSTALL.md` | Step-by-step install at a site (standalone or linked) |
+| `deploy/examples/` | Example site plans (no secrets): standalone post, and a two-post trial |
 | `deploy/BACKUP-RESTORE.md` | Backup and restore procedure |
 | `docs/guides/` | Operator, dispatch and administrator guides |
 | `design/` | Sync protocol specification |
@@ -231,4 +240,6 @@ for known reasons:
 This repository is a single snapshot of the source that the live demo runs:
 development commit `bdda1d5` (tag `deploy/demo-2026-10-07a`), built 2026-10-07.
 Development history, internal build reports and demo configuration were left
-out. No `.go` file has been changed.
+out. No program code has been changed: the published source builds a Linux binary
+byte-identical to one built from the deployed commit. The only test changes:
+tests that existed solely to check the removed demo files were removed with them.

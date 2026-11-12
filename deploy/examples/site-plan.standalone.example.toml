@@ -1,0 +1,48 @@
+# site-plan.standalone.example.toml - ONE post that works fully offline.
+#
+# Use this when the sites have no network link to each other. The post:
+#   - makes no network connections at all, and opens no port to other machines
+#     (it listens on 127.0.0.1, so only the browser on this laptop reaches it);
+#   - never shows a "LOST SIGNAL" warning, because it has no other site to lose;
+#   - lists the other sites as destinations, so officers can still record a
+#     vehicle leaving for them ("Record run to Pad Post - no gate there, no timer").
+#     No overdue timer runs for these, because the arrival at the other end can
+#     never reach this post.
+#
+# Make one copy per site, change the names, then generate the config:
+#
+#   .\sitectl.exe admin season -plan site-plan.toml -out C:\SiteControl-setup
+#
+# Give every site a DIFFERENT site_id and never reuse one, so the sites can
+# still be linked later without clashing.
+
+[[post]]
+site_id      = "iceroad"                  # permanent short name, lowercase
+display_name = "Ice Road Post"            # shown on every page
+listen_addr  = "127.0.0.1:8081"           # this laptop only
+base_url     = "http://127.0.0.1:8081"
+db_path      = 'C:\ProgramData\SiteControl\iceroad.db'   # single quotes: Windows path
+site_type    = "text_message"             # "text_message" = sign in and out each visit;
+                                          # "camp" = people live there
+orientation  = false                      # true at a work site that gives its own orientation
+
+# Optional, for an ice-road post only: equipment working ON the road, with no
+# destination. It counts as overdue after limit_minutes (a local timer; no
+# network needed). Delete these three lines at other posts.
+[post.road_work]
+display_name  = "Working on the ice road"
+limit_minutes = 720
+
+# The other sites, as places vehicles can be sent. One block per site.
+# "at" is this post's site_id; "id" is a short name for the destination.
+[[ungated]]
+at             = "iceroad"
+id             = "pad"
+display_name   = "Pad Post"
+travel_minutes = 65
+
+[[ungated]]
+at             = "iceroad"
+id             = "npf"
+display_name   = "NPF"
+travel_minutes = 90
