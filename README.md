@@ -150,7 +150,7 @@ This:
 folder. Nightly backups go to a `backups` folder beside the database.
 
 When editing a config by hand, put Windows paths in **single quotes**
-(`db_path = 'C:\ProgramData\SiteControllpha.db'`). Inside double quotes, TOML
+(`db_path = 'C:\ProgramData\SiteControl\alpha.db'`). Inside double quotes, TOML
 reads backslashes as escape characters, and the post refuses to start.
 
 Delete the season output folder once every post is installed. It is the only
