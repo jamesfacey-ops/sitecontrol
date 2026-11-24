@@ -66,7 +66,7 @@ type reportData struct {
 // its header, rows and denominator lines.
 func (s *Server) reportTable(name string) (header []string, rows [][]string, summary []string, err error) {
 	var buf bytes.Buffer
-	sum, err := domain.WriteReport(&buf, s.Store, name, domain.SiteTypes{s.Cfg.SiteID: s.Cfg.SiteType})
+	sum, err := domain.WriteReport(&buf, s.Store, name, s.Cfg.KnownSiteTypes())
 	if err != nil {
 		return nil, nil, nil, err
 	}

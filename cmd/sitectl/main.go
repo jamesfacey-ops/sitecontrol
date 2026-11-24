@@ -145,12 +145,13 @@ func main() {
 		if !domain.IsReportName(*report) {
 			log.Fatalf("sitectl: -report %q: unknown report (the reports are 'visits' and 'signout-failures')", *report)
 		}
-		// This post knows ONE site type — its own, from config (design §7:
+		// This post knows its own site type plus each peer's optional site_type
+		// (Config.KnownSiteTypes, the same set /history/signouts uses; design §7:
 		// config is local-only). Peer sites' rows are emitted with no
 		// verdict and named on stderr; run the report at that post for its
 		// verdicts. domain.WriteReport is the SAME call the web's
 		// /reports/<name>.csv makes (FIX16), so the two cannot differ.
-		types := domain.SiteTypes{cfg.SiteID: cfg.SiteType}
+		types := cfg.KnownSiteTypes()
 		sum, err := domain.WriteReport(os.Stdout, st, *report, types)
 		if err != nil {
 			log.Fatalf("sitectl: report %s: %v", *report, err)
